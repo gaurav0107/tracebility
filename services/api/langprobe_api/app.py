@@ -38,6 +38,7 @@ from .routers import (
     poll_runs,
     projects,
     prompts,
+    replay_runs,
     replays,
     run_actions,
     runs_query,
@@ -151,6 +152,7 @@ def create_app() -> FastAPI:
     app.include_router(runs_query.router)
     app.include_router(replays.runs_router)
     app.include_router(replays.catalog_router)
+    app.include_router(replay_runs.runs_router)
     app.include_router(threads_query.router)
     app.include_router(metrics.router)
     app.include_router(datasets.router)
