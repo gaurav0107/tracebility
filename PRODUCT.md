@@ -15,6 +15,13 @@ is the tool you reach for. Replay the run with edits applied,
 compare A/B prompts against a real model, score every item against
 LLM-as-judge or panel-of-LLM-judges.
 
+**Agent-first.** The surface is built for agents, not only humans.
+Every read is available as a token-budgeted, LLM-legible projection
+over REST and MCP, so an agent can debug an agent: find the failed
+run, read its salient slice, replay an edit, read the diff. Replay →
+diff → eval is the agent's debug loop, and it's what the incumbents
+(human dashboards on proprietary or storage-war backends) don't do.
+
 ## One-line pitches
 
 - **Hero:** The real debugger for agents.
