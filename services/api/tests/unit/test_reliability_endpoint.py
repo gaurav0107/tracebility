@@ -14,13 +14,17 @@ _CONFIG = str(uuid4())
 
 
 class _FakePool:
-    def __init__(self, workspace_id, role):
+    def __init__(self, workspace_id, role, org_id=None):
         self._workspace_id = workspace_id
+        self._org_id = org_id or uuid4()
         self._role = role
 
-    async def fetchval(self, sql, *args):
+    async def fetchrow(self, sql, *args):
         if "from project" in sql:
-            return self._workspace_id
+            return {"workspace_id": self._workspace_id, "org_id": self._org_id}
+        return None
+
+    async def fetchval(self, sql, *args):
         if "workspace_member" in sql:
             return self._role
         return None
@@ -67,8 +71,11 @@ def test_reliability_403_without_role():
     app.include_router(reliability.router)
 
     class _NoRolePool:
+        async def fetchrow(self, sql, *args):
+            return {"workspace_id": uuid4(), "org_id": uuid4()} if "from project" in sql else None
+
         async def fetchval(self, sql, *args):
-            return uuid4() if "from project" in sql else None
+            return None
 
     app.state.pg = _NoRolePool()
     app.state.clickhouse = _FakeCH([])

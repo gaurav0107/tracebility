@@ -32,12 +32,16 @@ async def eval_reliability(
     principal: Principal = Depends(require_user),
 ):
     pool: asyncpg.Pool = request.app.state.pg
-    workspace_id = await pool.fetchval(
-        "select workspace_id from project where id = $1 and deleted_at is null",
+    row = await pool.fetchrow(
+        "select p.workspace_id, w.org_id "
+        "from project p join workspace w on w.id = p.workspace_id "
+        "where p.id = $1 and p.deleted_at is null",
         project_id,
     )
-    if workspace_id is None:
+    if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+    workspace_id = row["workspace_id"]
+    org_id = row["org_id"]
     await assert_workspace_role(
         pool,
         user_id=principal.user_id,
@@ -58,11 +62,13 @@ async def eval_reliability(
             select toString(coalesce(span_id, run_id)) as item_key,
                    judge_name, score, outcome
               from eval_score final
-             where project_id = {project_id:UUID}
+             where org_id = {org_id:UUID}
+               and project_id = {project_id:UUID}
                and eval_config_id = {eval_config_id:UUID}
              limit {limit:UInt32}
             """,
             parameters={
+                "org_id": str(org_id),
                 "project_id": project_id,
                 "eval_config_id": eval_config_id,
                 "limit": limit,
