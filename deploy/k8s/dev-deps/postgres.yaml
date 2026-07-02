@@ -28,8 +28,14 @@ spec:
               value: langprobe
             - name: POSTGRES_USER
               value: langprobe
+            # Password is sourced from a Secret the operator generates at
+            # bootstrap (openssl rand) — never a committed default. See
+            # deploy/k8s/dev-deps/README.md and the GKE bootstrap runbook.
             - name: POSTGRES_PASSWORD
-              value: langprobe
+              valueFrom:
+                secretKeyRef:
+                  name: langprobe-db-bootstrap
+                  key: postgres_password
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           ports:

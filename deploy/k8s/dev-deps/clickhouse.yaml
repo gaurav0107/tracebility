@@ -28,8 +28,14 @@ spec:
               value: langprobe
             - name: CLICKHOUSE_USER
               value: langprobe
+            # Password is sourced from a Secret the operator generates at
+            # bootstrap (openssl rand) — never a committed default. See
+            # deploy/k8s/dev-deps/README.md and the GKE bootstrap runbook.
             - name: CLICKHOUSE_PASSWORD
-              value: langprobe
+              valueFrom:
+                secretKeyRef:
+                  name: langprobe-db-bootstrap
+                  key: clickhouse_password
             - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
               value: "1"
           ports:
