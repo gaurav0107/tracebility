@@ -18,6 +18,7 @@ dependencies = [
     "litellm==1.52.16",
     "redis>=5.0",
     "langprobe-tenant",
+    "mcp>=1.2",
 ]
 
 [tool.uv.sources]
