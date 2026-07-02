@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ReplayDiffClient } from "@/components/ReplayDiffClient";
 import { Shell } from "@/components/Shell";
 import { apiGet } from "@/lib/api";
 import { resolveActiveProject } from "@/lib/projects";
@@ -206,6 +207,8 @@ export default async function RunDetailPage({
             run={run}
             span={selectedSpan}
             captures={captures}
+            spans={spans}
+            projectId={active.id}
             capture={
               selectedSpan
                 ? capturesBySpanId.get(selectedSpan.span_id) ?? null
@@ -653,11 +656,15 @@ function InspectorPane({
   run,
   span,
   captures,
+  spans,
+  projectId,
   capture,
 }: {
   run: Run;
   span: Span | null;
   captures: ReplayCaptureList | null;
+  spans: Span[];
+  projectId: string;
   capture: ReplayCaptureItem | null;
 }) {
   return (
@@ -702,7 +709,12 @@ function InspectorPane({
         {span ? (
           <SpanInspector span={span} capture={capture} />
         ) : (
-          <RunInspector run={run} captures={captures} />
+          <RunInspector
+            run={run}
+            captures={captures}
+            spans={spans}
+            projectId={projectId}
+          />
         )}
       </div>
     </aside>
@@ -796,10 +808,22 @@ function CaptureBlock({ capture }: { capture: ReplayCaptureItem }) {
 function RunInspector({
   run,
   captures,
+  spans,
+  projectId,
 }: {
   run: Run;
   captures: ReplayCaptureList | null;
+  spans: Span[];
+  projectId: string;
 }) {
+  const llmSpans = spans
+    .filter((s) => (s.kind || "").toLowerCase() === "llm")
+    .map((s) => ({
+      span_id: s.span_id,
+      name: s.name,
+      model: s.model,
+      temperature: s.temperature,
+    }));
   return (
     <>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -838,6 +862,13 @@ function RunInspector({
         </Section>
       ) : null}
       {captures ? <ReplayPanel captures={captures} /> : null}
+      <Section label="replay & diff">
+        <ReplayDiffClient
+          runId={run.run_id}
+          projectId={projectId}
+          spans={llmSpans}
+        />
+      </Section>
     </>
   );
 }
