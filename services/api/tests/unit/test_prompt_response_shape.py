@@ -11,7 +11,6 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from pydantic import ValidationError
 
 # These imports refer to symbols added in this task. Until the
 # implementation lands, the test fails at import time.
@@ -20,6 +19,7 @@ from langprobe_api.routers.prompts import (
     PromptVersionOut,
     _hydrate_version,
 )
+from pydantic import ValidationError
 
 
 def _now():

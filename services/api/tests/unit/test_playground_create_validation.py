@@ -7,8 +7,8 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
-from pydantic import ValidationError
 from langprobe_api.routers.playground import Message, PlaygroundCreate
+from pydantic import ValidationError
 
 _MODEL = "anthropic/claude-sonnet-4-6"
 

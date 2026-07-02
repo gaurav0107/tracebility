@@ -24,8 +24,15 @@ from __future__ import annotations
 from langprobe_api.replay.diff import compute_replay_diff
 
 
-def _span(span_id, *, name="llm", model="anthropic/claude-sonnet-4-6",
-          outputs="hello", cost_usd=0.001, latency_ms=100):
+def _span(
+    span_id,
+    *,
+    name="llm",
+    model="anthropic/claude-sonnet-4-6",
+    outputs="hello",
+    cost_usd=0.001,
+    latency_ms=100,
+):
     return {
         "span_id": span_id,
         "name": name,
@@ -78,8 +85,10 @@ def test_non_edited_span_drift_is_nondeterministic():
 def test_model_change_on_span_flags_model_version_diff():
     """ER-18: a model endpoint diff is warned via outcome, not silent."""
     pairs = [
-        (_span("a", model="anthropic/claude-sonnet-4-6"),
-         _span("a", model="anthropic/claude-opus-4-8", outputs="z")),
+        (
+            _span("a", model="anthropic/claude-sonnet-4-6"),
+            _span("a", model="anthropic/claude-opus-4-8", outputs="z"),
+        ),
     ]
     diff = compute_replay_diff(pairs, edited_span_ids=set())
     assert diff.outcome == "model_version_diff"
@@ -94,9 +103,7 @@ def test_missing_capture_degrades_loud_not_silent():
     """A span that could not be re-executed (capture missing) must surface
     as tool_io_missing, never a silent wrong diff."""
     pairs = [(_span("a"), None)]
-    diff = compute_replay_diff(
-        pairs, edited_span_ids=set(), missing_capture_span_ids={"a"}
-    )
+    diff = compute_replay_diff(pairs, edited_span_ids=set(), missing_capture_span_ids={"a"})
     assert diff.outcome == "tool_io_missing"
     assert diff.determinism == "tool_unavailable"
     delta = diff.deltas[0]
@@ -116,10 +123,12 @@ def test_new_span_from_divergence_is_marked():
 
 
 def test_cost_and_latency_deltas_computed():
-    pairs = [(
-        _span("a", cost_usd=0.001, latency_ms=100),
-        _span("a", cost_usd=0.004, latency_ms=160, outputs="diff"),
-    )]
+    pairs = [
+        (
+            _span("a", cost_usd=0.001, latency_ms=100),
+            _span("a", cost_usd=0.004, latency_ms=160, outputs="diff"),
+        )
+    ]
     diff = compute_replay_diff(pairs, edited_span_ids={"a"})
     delta = diff.deltas[0]
     assert abs(delta.cost_delta_usd - 0.003) < 1e-9

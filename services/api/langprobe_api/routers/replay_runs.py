@@ -75,9 +75,7 @@ class ReplayResponse(BaseModel):
     deltas: list[SpanDeltaOut]
 
 
-async def _load_spans(
-    ch: ClickHouseQuery, project_id: UUID, run_id: UUID
-) -> list[dict[str, Any]]:
+async def _load_spans(ch: ClickHouseQuery, project_id: UUID, run_id: UUID) -> list[dict[str, Any]]:
     rows = await ch.query(
         """
         select toString(span_id) as span_id,
@@ -95,9 +93,7 @@ async def _load_spans(
     return list(rows)
 
 
-async def _capturable_span_ids(
-    ch: ClickHouseQuery, project_id: UUID, run_id: UUID
-) -> set[str]:
+async def _capturable_span_ids(ch: ClickHouseQuery, project_id: UUID, run_id: UUID) -> set[str]:
     rows = await ch.query(
         """
         select distinct toString(span_id) as span_id
@@ -143,9 +139,7 @@ async def replay_run(
         capturable = await _capturable_span_ids(ch, body.project_id, run_id)
     except Exception as exc:  # noqa: BLE001
         log.warning("replay span load failed", run_id=str(run_id), error=str(exc))
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE, "data plane unavailable"
-        ) from exc
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "data plane unavailable") from exc
 
     if not spans:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "run has no spans")
@@ -163,7 +157,12 @@ async def replay_run(
     async def dispatch(span: dict[str, Any], span_edits: list[ReplayEdit]) -> DispatchOutcome:
         if (span.get("kind") or "") != "llm":
             return DispatchOutcome(
-                "", "", 0.0, 0, 0, 0,
+                "",
+                "",
+                0.0,
+                0,
+                0,
+                0,
                 error=f"Phase 0 replays llm spans only; got kind={span.get('kind')!r}",
             )
         prompt, model, temperature, _applied, _skipped = apply_llm_edits(
@@ -209,9 +208,7 @@ async def replay_run(
             completion_tokens=int(result.completion_tokens or 0),
         )
 
-    plan = await execute_replay(
-        spans, edits, dispatch=dispatch, capturable_span_ids=capturable
-    )
+    plan = await execute_replay(spans, edits, dispatch=dispatch, capturable_span_ids=capturable)
     diff = compute_replay_diff(
         plan.pairs,
         edited_span_ids=plan.edited_span_ids,

@@ -7,8 +7,8 @@ list for the storage path."""
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
 from langprobe_api.routers.prompts import Message, PromptVersionCreate
+from pydantic import ValidationError
 
 
 def test_accepts_template_messages():

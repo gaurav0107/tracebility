@@ -381,8 +381,7 @@ async def sso_start(
     # operator override via env (LANGPROBE_PUBLIC_API_URL) for
     # production where the api host differs from the cookie host.
     public_base = (
-        os.environ.get("LANGPROBE_PUBLIC_API_URL")
-        or f"{request.url.scheme}://{request.url.netloc}"
+        os.environ.get("LANGPROBE_PUBLIC_API_URL") or f"{request.url.scheme}://{request.url.netloc}"
     )
     redirect_uri = f"{public_base}/v1/auth/sso/callback"
 

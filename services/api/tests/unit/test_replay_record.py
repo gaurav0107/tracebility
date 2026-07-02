@@ -64,16 +64,26 @@ def test_notes_carry_model_drift_for_er18():
         outcome="model_version_diff",
         deltas=[
             SpanDelta(
-                span_id="a", name="llm", diverged=True, output_changed=True,
-                model_changed=True, original_output="x", replayed_output="y",
-                cost_delta_usd=0.0, latency_delta_ms=0,
+                span_id="a",
+                name="llm",
+                diverged=True,
+                output_changed=True,
+                model_changed=True,
+                original_output="x",
+                replayed_output="y",
+                cost_delta_usd=0.0,
+                latency_delta_ms=0,
                 note="model m1 -> m2 (ER-18)",
             )
         ],
     )
     row = build_replay_run_row(
-        diff, project_id=_PROJ, replay_run_id=_RID, original_run_id=_ORIG,
-        started_at="2026-06-29T00:00:00Z", finished_at=None,
+        diff,
+        project_id=_PROJ,
+        replay_run_id=_RID,
+        original_run_id=_ORIG,
+        started_at="2026-06-29T00:00:00Z",
+        finished_at=None,
     )
     notes = dict(zip(REPLAY_RUN_COLUMNS, row, strict=True))["notes"]
     assert "ER-18" in notes or "m1 -> m2" in notes
@@ -81,20 +91,34 @@ def test_notes_carry_model_drift_for_er18():
 
 def test_finished_at_nullable():
     row = build_replay_run_row(
-        _diff(), project_id=_PROJ, replay_run_id=_RID, original_run_id=_ORIG,
-        started_at="2026-06-29T00:00:00Z", finished_at=None,
+        _diff(),
+        project_id=_PROJ,
+        replay_run_id=_RID,
+        original_run_id=_ORIG,
+        started_at="2026-06-29T00:00:00Z",
+        finished_at=None,
     )
     assert dict(zip(REPLAY_RUN_COLUMNS, row, strict=True))["finished_at"] is None
 
 
 def test_summary_is_concise_and_localizes_divergence():
     diff = _diff(
-        outcome="ok", span_count_total=5, span_count_diverged=1,
+        outcome="ok",
+        span_count_total=5,
+        span_count_diverged=1,
         deltas=[
-            SpanDelta(span_id="span-abc", name="llm", diverged=True,
-                      output_changed=True, model_changed=False,
-                      original_output="a", replayed_output="b",
-                      cost_delta_usd=0.002, latency_delta_ms=30, note=""),
+            SpanDelta(
+                span_id="span-abc",
+                name="llm",
+                diverged=True,
+                output_changed=True,
+                model_changed=False,
+                original_output="a",
+                replayed_output="b",
+                cost_delta_usd=0.002,
+                latency_delta_ms=30,
+                note="",
+            ),
         ],
     )
     s = summarize_diff(diff)
@@ -105,14 +129,23 @@ def test_summary_is_concise_and_localizes_divergence():
 
 def test_summary_flags_missing_capture_loud():
     diff = _diff(
-        determinism="tool_unavailable", outcome="tool_io_missing",
-        span_count_total=2, span_count_diverged=1,
+        determinism="tool_unavailable",
+        outcome="tool_io_missing",
+        span_count_total=2,
+        span_count_diverged=1,
         deltas=[
-            SpanDelta(span_id="s1", name="tool", diverged=True,
-                      output_changed=False, model_changed=False,
-                      original_output="", replayed_output="",
-                      cost_delta_usd=0.0, latency_delta_ms=0,
-                      note="capture missing — not replayable"),
+            SpanDelta(
+                span_id="s1",
+                name="tool",
+                diverged=True,
+                output_changed=False,
+                model_changed=False,
+                original_output="",
+                replayed_output="",
+                cost_delta_usd=0.0,
+                latency_delta_ms=0,
+                note="capture missing — not replayable",
+            ),
         ],
     )
     s = summarize_diff(diff)

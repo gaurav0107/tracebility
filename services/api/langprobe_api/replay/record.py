@@ -78,8 +78,7 @@ def summarize_diff(diff: ReplayDiff) -> str:
         where += f", +{len(diverged) - 3} more"
 
     head = (
-        f"replay {diff.outcome}: "
-        f"{diff.span_count_diverged}/{diff.span_count_total} spans diverged"
+        f"replay {diff.outcome}: {diff.span_count_diverged}/{diff.span_count_total} spans diverged"
     )
     if where:
         head += f" at {where}"

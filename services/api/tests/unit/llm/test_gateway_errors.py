@@ -6,9 +6,9 @@ import uuid
 from unittest.mock import AsyncMock
 
 import pytest
-from litellm import exceptions as litellm_errors
 from langprobe_api.llm import DispatchError, dispatch
 from langprobe_api.llm.types import Message
+from litellm import exceptions as litellm_errors
 
 pytestmark = pytest.mark.asyncio
 

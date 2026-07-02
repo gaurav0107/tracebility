@@ -20,8 +20,15 @@ from langprobe_api.replay.executor import (
 )
 
 
-def _span(span_id, *, kind="llm", model="anthropic/claude-sonnet-4-6",
-          outputs="orig", cost_usd=0.001, latency_ms=100):
+def _span(
+    span_id,
+    *,
+    kind="llm",
+    model="anthropic/claude-sonnet-4-6",
+    outputs="orig",
+    cost_usd=0.001,
+    latency_ms=100,
+):
     return {
         "span_id": span_id,
         "name": kind,
@@ -48,13 +55,16 @@ async def test_edited_span_redispatched_others_held():
     spans = [_span("a", outputs="old"), _span("b", outputs="keep")]
     edits = [ReplayEdit(target_span_id="a", field="prompt", value="new prompt")]
     dispatch = _fake_dispatch(
-        DispatchOutcome(outputs="new", model="anthropic/claude-sonnet-4-6",
-                        cost_usd=0.002, latency_ms=140,
-                        prompt_tokens=10, completion_tokens=5)
+        DispatchOutcome(
+            outputs="new",
+            model="anthropic/claude-sonnet-4-6",
+            cost_usd=0.002,
+            latency_ms=140,
+            prompt_tokens=10,
+            completion_tokens=5,
+        )
     )
-    plan = await execute_replay(
-        spans, edits, dispatch=dispatch, capturable_span_ids={"a", "b"}
-    )
+    plan = await execute_replay(spans, edits, dispatch=dispatch, capturable_span_ids={"a", "b"})
     # only the edited span dispatched
     assert dispatch.calls == [("a", ["prompt"])]
     assert plan.edited_span_ids == {"a"}
@@ -78,9 +88,7 @@ async def test_edited_span_redispatched_others_held():
 async def test_no_edits_holds_everything():
     spans = [_span("a"), _span("b")]
     dispatch = _fake_dispatch(DispatchOutcome("x", "m", 0, 0, 0, 0))
-    plan = await execute_replay(
-        spans, [], dispatch=dispatch, capturable_span_ids={"a", "b"}
-    )
+    plan = await execute_replay(spans, [], dispatch=dispatch, capturable_span_ids={"a", "b"})
     assert dispatch.calls == []  # nothing re-dispatched
     diff = compute_replay_diff(plan.pairs, edited_span_ids=plan.edited_span_ids)
     assert diff.span_count_diverged == 0
@@ -91,9 +99,7 @@ async def test_edited_span_without_capture_is_loud():
     spans = [_span("a")]
     edits = [ReplayEdit(target_span_id="a", field="prompt", value="x")]
     dispatch = _fake_dispatch(DispatchOutcome("y", "m", 0, 0, 0, 0))
-    plan = await execute_replay(
-        spans, edits, dispatch=dispatch, capturable_span_ids=set()
-    )
+    plan = await execute_replay(spans, edits, dispatch=dispatch, capturable_span_ids=set())
     assert dispatch.calls == []  # never dispatched — no capture to anchor
     assert plan.missing_capture_span_ids == {"a"}
     diff = compute_replay_diff(
@@ -111,9 +117,7 @@ async def test_dispatch_failure_surfaces_not_silent():
     async def failing_dispatch(span, edits):
         return DispatchOutcome("", "", 0, 0, 0, 0, error="provider 500")
 
-    plan = await execute_replay(
-        spans, edits, dispatch=failing_dispatch, capturable_span_ids={"a"}
-    )
+    plan = await execute_replay(spans, edits, dispatch=failing_dispatch, capturable_span_ids={"a"})
     # paired with None => diff escalates loudly
     pair = plan.pairs[0]
     assert pair[1] is None
@@ -133,9 +137,7 @@ async def test_multiple_edits_same_span_passed_together():
         ReplayEdit(target_span_id="a", field="temperature", value=0.2),
     ]
     dispatch = _fake_dispatch(DispatchOutcome("out", "m", 0.001, 50, 1, 1))
-    plan = await execute_replay(
-        spans, edits, dispatch=dispatch, capturable_span_ids={"a"}
-    )
+    plan = await execute_replay(spans, edits, dispatch=dispatch, capturable_span_ids={"a"})
     assert dispatch.calls == [("a", ["prompt", "temperature"])]
 
 
@@ -171,7 +173,9 @@ def test_apply_edits_defaults_when_no_edits():
 
 def test_apply_edits_invalid_temperature_skipped():
     _, _, temp, applied, skipped = apply_llm_edits(
-        base_inputs="p", base_model="m", base_temperature=0.1,
+        base_inputs="p",
+        base_model="m",
+        base_temperature=0.1,
         edits=[ReplayEdit("a", "temperature", "not-a-number")],
     )
     assert temp == 0.1  # unchanged
@@ -181,7 +185,9 @@ def test_apply_edits_invalid_temperature_skipped():
 
 def test_apply_edits_tool_args_metadata_only():
     _, _, _, applied, _ = apply_llm_edits(
-        base_inputs="p", base_model="m", base_temperature=0.0,
+        base_inputs="p",
+        base_model="m",
+        base_temperature=0.0,
         edits=[ReplayEdit("a", "tool_args", {"x": 1})],
     )
     assert any("tool_args" in a for a in applied)
