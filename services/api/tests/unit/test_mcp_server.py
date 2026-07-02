@@ -31,7 +31,16 @@ def _server(ch=None):
 async def test_tools_registered():
     mcp = _server()
     names = {t.name for t in await mcp.list_tools()}
-    assert names == {"list_failed_runs", "get_run", "replay_run"}
+    assert names == {"list_failed_runs", "get_run", "replay_run", "instrument_my_repo"}
+
+
+@pytest.mark.asyncio
+async def test_instrument_my_repo_tool_executes():
+    mcp = _server()
+    _content, structured = await mcp.call_tool("instrument_my_repo", {"framework": "crewai"})
+    assert structured["supported"] is True
+    assert structured["framework"] == "crewai"
+    assert "openinference-instrumentation-crewai" in " ".join(structured["install"])
 
 
 @pytest.mark.asyncio
