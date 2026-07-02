@@ -3,6 +3,7 @@
 Token-budgeted, LLM-legible views any agent can call with a session/API key:
 - GET /v1/agent/failed-runs  — recent errored runs (entry point)
 - GET /v1/runs/{run_id}/agent-view — the salient slice of one run
+- GET /v1/agent/instrument-guide — stateless "how do I wire my repo?" recipe
 
 Same handlers the MCP server wraps (`agent.tools`); same auth as the rest of the
 API. Reads require viewer+; the data plane (ClickHouse) is project-scoped.
@@ -14,6 +15,7 @@ import asyncpg
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
+from ..agent.onboarding import build_instrumentation_guide
 from ..agent.tools import find_failed_runs, get_run_agent_view
 from ..auth import Principal, assert_workspace_role, require_user
 from ..clickhouse_client import ClickHouseQuery
@@ -60,6 +62,18 @@ async def agent_failed_runs(
         log.warning("agent failed-runs query failed", error=str(exc))
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "data plane unavailable") from exc
     return {"runs": runs}
+
+
+@router.get("/agent/instrument-guide")
+async def agent_instrument_guide(
+    framework: str = Query(default=""),
+    language: str = Query(default="python"),
+    principal: Principal = Depends(require_user),
+):
+    """Stateless onboarding guidance: exact steps to wire a repo to langprobe
+    over OTLP. No project scope — pure recipe. Empty framework lists the
+    supported frameworks."""
+    return build_instrumentation_guide(framework, language)
 
 
 @router.get("/runs/{run_id}/agent-view")

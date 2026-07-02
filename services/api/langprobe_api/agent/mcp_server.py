@@ -2,8 +2,12 @@
 
 Exposes the 2am debug loop as agent-callable tools over the Model Context
 Protocol: find the broken run, read its salient slice, replay an edit, read the
-diff. Every tool wraps the same handlers (`agent.tools`) and replay service the
-HTTP surface uses — one logic, two transports.
+diff. Plus `instrument_my_repo` — the agent-native onboarding tool ("don't
+integrate langprobe — tell your agent to"). Every tool wraps the same handlers
+(`agent.tools` / `agent.onboarding`) and replay service the HTTP surface uses —
+one logic, two transports.
+
+Tools: list_failed_runs, get_run, replay_run, instrument_my_repo.
 
 Construction injects `get_ch` / `get_pool` so the server binds to the running
 app's ClickHouse / Postgres without importing app state at module load (keeps it
@@ -28,6 +32,7 @@ from ..clickhouse_client import ClickHouseQuery
 from ..replay.executor import ReplayEdit
 from ..replay.record import summarize_diff
 from ..replay.service import run_span_replay
+from .onboarding import build_instrumentation_guide
 from .tools import find_failed_runs, get_run_agent_view
 
 
@@ -110,5 +115,12 @@ def build_mcp_server(
                 for d in diff.deltas
             ],
         }
+
+    @mcp.tool()
+    async def instrument_my_repo(framework: str = "", language: str = "python") -> dict[str, Any]:
+        """Return exact steps to wire <framework> to langprobe over OTLP
+        (OpenInference instrumentor + OTLP exporter). Empty framework lists
+        supported frameworks."""
+        return build_instrumentation_guide(framework, language)
 
     return mcp

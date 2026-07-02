@@ -109,6 +109,25 @@ def test_agent_view_404_when_run_missing():
     assert res.status_code == 404
 
 
+def test_instrument_guide_returns_supported():
+    client = TestClient(_make_app(_FakeCH()))
+    res = client.get("/v1/agent/instrument-guide?framework=dspy")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["supported"] is True
+    assert body["framework"] == "dspy"
+    assert "opentelemetry-exporter-otlp-proto-http" in " ".join(body["install"])
+
+
+def test_instrument_guide_unknown_lists_supported():
+    client = TestClient(_make_app(_FakeCH()))
+    res = client.get("/v1/agent/instrument-guide?framework=bogus")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["supported"] is False
+    assert body["supported_frameworks"]
+
+
 def test_agent_view_403_without_role():
     ch = _FakeCH(run={"run_id": "r1"}, spans=[])
 
