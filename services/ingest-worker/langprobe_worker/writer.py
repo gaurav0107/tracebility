@@ -43,6 +43,7 @@ _RUN_COLUMNS: tuple[str, ...] = (
     "sdk",
     "start_time",
     "end_time",
+    "duration_ns",
     "received_at",
     "inputs",
     "outputs",
@@ -73,6 +74,7 @@ _SPAN_COLUMNS: tuple[str, ...] = (
     "status",
     "start_time",
     "end_time",
+    "duration_ns",
     "received_at",
     "model",
     "temperature",
@@ -134,6 +136,22 @@ def _epoch(value: Any) -> datetime:
     return parsed if parsed is not None else datetime.fromtimestamp(0, tz=UTC)
 
 
+def _duration_ns(start: datetime | None, end: datetime | None) -> int | None:
+    """Wall-clock latency in nanoseconds, or None when it can't be derived.
+
+    The ClickHouse ``duration_ns`` column feeds the Traces latency column and
+    every p50/p95/p99 percentile query. Native ingest carries start_time +
+    end_time but no explicit duration, so the worker derives it. None when
+    end_time is absent or precedes start_time (clock skew / bad input) rather
+    than writing a bogus/negative latency.
+    """
+    if start is None or end is None:
+        return None
+    delta = end - start
+    ns = int(delta.total_seconds() * 1_000_000_000)
+    return ns if ns >= 0 else None
+
+
 _MISSING_TENANT_UUID = "00000000-0000-0000-0000-000000000000"
 
 
@@ -170,6 +188,8 @@ def _tenant_tuple(envelope: dict[str, Any]) -> tuple[str, str, str]:
 def _row_for_run(envelope: dict[str, Any], run: dict[str, Any]) -> tuple[Any, ...]:
     received_at = _epoch(run.get("received_at") or envelope.get("received_at"))
     org_id, workspace_id, project_id = _tenant_tuple(envelope)
+    start_time = _epoch(run.get("start_time"))
+    end_time = _parse_dt(run.get("end_time"))
     return (
         org_id,
         workspace_id,
@@ -180,8 +200,9 @@ def _row_for_run(envelope: dict[str, Any], run: dict[str, Any]) -> tuple[Any, ..
         run.get("kind") or "chain",
         run.get("status") or "ok",
         run.get("sdk") or envelope.get("source") or "",
-        _epoch(run.get("start_time")),
-        _parse_dt(run.get("end_time")),
+        start_time,
+        end_time,
+        _duration_ns(start_time, end_time),
         received_at,
         run.get("inputs") or "",
         run.get("outputs") or "",
@@ -210,6 +231,8 @@ def _row_for_span(
     received_at = _epoch(envelope.get("received_at"))
     run_id = span.get("run_id") or parent_run_id
     org_id, workspace_id, project_id = _tenant_tuple(envelope)
+    start_time = _epoch(span.get("start_time"))
+    end_time = _parse_dt(span.get("end_time"))
     return (
         org_id,
         workspace_id,
@@ -220,8 +243,9 @@ def _row_for_span(
         span.get("name") or "",
         span.get("kind") or "chain",
         span.get("status") or "ok",
-        _epoch(span.get("start_time")),
-        _parse_dt(span.get("end_time")),
+        start_time,
+        end_time,
+        _duration_ns(start_time, end_time),
         received_at,
         span.get("model") or "",
         span.get("temperature"),

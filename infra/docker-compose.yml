@@ -36,7 +36,10 @@ services:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
     volumes:
       - ch-data:/var/lib/clickhouse
-      - ../schemas/clickhouse:/docker-entrypoint-initdb.d:ro
+      # Schema is applied into $CLICKHOUSE_DB by clickhouse-init.sh (the
+      # official entrypoint runs bare *.sql against `default`, not our db).
+      - ../schemas/clickhouse:/schemas/clickhouse:ro
+      - ./clickhouse-init.sh:/docker-entrypoint-initdb.d/init.sh:ro
     ports:
       - "8123:8123"
       - "9000:9000"
@@ -68,6 +71,7 @@ services:
     environment:
       LANGPROBE_PG_DSN: postgres://langprobe:${POSTGRES_PASSWORD:-langprobe}@postgres:5432/langprobe
       LANGPROBE_REDIS_URL: redis://redis:6379/0
+      LANGPROBE_CLICKHOUSE_URL: http://langprobe:${CLICKHOUSE_PASSWORD:-langprobe}@clickhouse:8123/langprobe
       LANGPROBE_DISK_BUFFER_PATH: /var/lib/langprobe/ingest-buffer
       LANGPROBE_LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LANGPROBE_BIND_HOST: 0.0.0.0
@@ -78,6 +82,7 @@ services:
       - ingest-buffer:/var/lib/langprobe/ingest-buffer
     depends_on:
       postgres: { condition: service_healthy }
+      clickhouse: { condition: service_healthy }
       redis: { condition: service_healthy }
     restart: unless-stopped
 

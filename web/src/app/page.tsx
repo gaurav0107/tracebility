@@ -475,10 +475,17 @@ function FirstTraceQuickstart({ project }: { project: Project }) {
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "name": "hello-world",
-    "kind": "llm",
-    "inputs":  { "prompt": "what is 2 + 2?" },
-    "outputs": { "answer": "4" }
+    "sdk": "curl",
+    "runs": [
+      {
+        "run_id": "'"$(uuidgen | tr "[:upper:]" "[:lower:]")"'",
+        "name": "hello-world",
+        "kind": "llm",
+        "start_time": "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'",
+        "inputs": "{\\"prompt\\": \\"what is 2 + 2?\\"}",
+        "outputs": "{\\"answer\\": \\"4\\"}"
+      }
+    ]
   }'`;
   return (
     <section className="card-section">
