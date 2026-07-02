@@ -72,12 +72,16 @@ async def replay_run(
     principal: Principal = Depends(require_user),
 ) -> ReplayResponse:
     pool: asyncpg.Pool = request.app.state.pg
-    workspace_id = await pool.fetchval(
-        "select workspace_id from project where id = $1 and deleted_at is null",
+    row = await pool.fetchrow(
+        "select p.workspace_id, w.org_id "
+        "from project p join workspace w on w.id = p.workspace_id "
+        "where p.id = $1 and p.deleted_at is null",
         body.project_id,
     )
-    if workspace_id is None:
+    if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+    workspace_id = row["workspace_id"]
+    org_id = row["org_id"]
     await assert_workspace_role(
         pool,
         user_id=principal.user_id,
@@ -103,6 +107,7 @@ async def replay_run(
         diff = await run_span_replay(
             pool,
             ch,
+            org_id=org_id,
             project_id=body.project_id,
             run_id=run_id,
             edits=edits,
@@ -112,9 +117,7 @@ async def replay_run(
         )
     except Exception as exc:  # noqa: BLE001
         log.warning("replay failed", run_id=str(run_id), error=str(exc))
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE, "data plane unavailable"
-        ) from exc
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "data plane unavailable") from exc
 
     if diff is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "run has no spans")

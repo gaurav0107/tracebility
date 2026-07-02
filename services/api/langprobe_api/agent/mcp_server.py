@@ -20,7 +20,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from mcp.server.fastmcp import FastMCP
 
@@ -50,9 +50,7 @@ def build_mcp_server(
     ) -> dict[str, Any] | None:
         """Token-budgeted, LLM-legible view of one run: the salient spans,
         errored-first, with truncated I/O and a one-line verdict."""
-        return await get_run_agent_view(
-            get_ch(), project_id, run_id, token_budget=token_budget
-        )
+        return await get_run_agent_view(get_ch(), project_id, run_id, token_budget=token_budget)
 
     @mcp.tool()
     async def replay_run(
@@ -71,9 +69,18 @@ def build_mcp_server(
         ]
         replay_run_id = uuid4()
         started = datetime.now(UTC)
+        pool = get_pool()
+        org_id = await pool.fetchval(
+            "select w.org_id from project p join workspace w on w.id = p.workspace_id "
+            "where p.id = $1 and p.deleted_at is null",
+            UUID(project_id),
+        )
+        if org_id is None:
+            return {"error": "project not found", "run_id": run_id}
         diff = await run_span_replay(
-            get_pool(),
+            pool,
             get_ch(),
+            org_id=org_id,
             project_id=project_id,
             run_id=run_id,
             edits=replay_edits,

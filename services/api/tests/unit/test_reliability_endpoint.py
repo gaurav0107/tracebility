@@ -53,9 +53,7 @@ def test_reliability_report_shape():
         {"item_key": "i2", "judge_name": "b", "score": 0.2, "outcome": "ok"},
     ]
     client = TestClient(_make_app(rows))
-    res = client.get(
-        f"/v1/eval-reliability?project_id={_PROJECT}&eval_config_id={_CONFIG}"
-    )
+    res = client.get(f"/v1/eval-reliability?project_id={_PROJECT}&eval_config_id={_CONFIG}")
     assert res.status_code == 200, res.text
     body = res.json()
     assert body["total_scores"] == 4

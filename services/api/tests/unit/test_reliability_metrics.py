@@ -60,8 +60,10 @@ def test_test_retest_ignores_single_shot_items():
 
 def test_inter_judge_agreement_full_when_panel_agrees():
     rows = [
-        _row("i1", "a", 0.9), _row("i1", "b", 0.8),  # both pass
-        _row("i2", "a", 0.1), _row("i2", "b", 0.2),  # both fail
+        _row("i1", "a", 0.9),
+        _row("i1", "b", 0.8),  # both pass
+        _row("i2", "a", 0.1),
+        _row("i2", "b", 0.2),  # both fail
     ]
     r = compute_reliability(rows, threshold=0.5)
     assert r.inter_judge_agreement == 1.0
@@ -70,8 +72,10 @@ def test_inter_judge_agreement_full_when_panel_agrees():
 
 def test_inter_judge_agreement_drops_on_split():
     rows = [
-        _row("i1", "a", 0.9), _row("i1", "b", 0.1),  # split
-        _row("i2", "a", 0.9), _row("i2", "b", 0.8),  # agree
+        _row("i1", "a", 0.9),
+        _row("i1", "b", 0.1),  # split
+        _row("i2", "a", 0.9),
+        _row("i2", "b", 0.8),  # agree
     ]
     r = compute_reliability(rows, threshold=0.5)
     assert r.inter_judge_agreement == 0.5

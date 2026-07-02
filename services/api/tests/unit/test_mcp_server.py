@@ -36,14 +36,19 @@ async def test_tools_registered():
 
 @pytest.mark.asyncio
 async def test_list_failed_runs_tool_executes():
-    ch = _FakeCH(runs=[
-        {"run_id": "r1", "name": "loop", "error_kind": "X",
-         "error_message": "boom", "start_time": "2026-06-29T00:00:00Z"}
-    ])
-    mcp = _server(ch)
-    _content, structured = await mcp.call_tool(
-        "list_failed_runs", {"project_id": "p1", "limit": 5}
+    ch = _FakeCH(
+        runs=[
+            {
+                "run_id": "r1",
+                "name": "loop",
+                "error_kind": "X",
+                "error_message": "boom",
+                "start_time": "2026-06-29T00:00:00Z",
+            }
+        ]
     )
+    mcp = _server(ch)
+    _content, structured = await mcp.call_tool("list_failed_runs", {"project_id": "p1", "limit": 5})
     # FastMCP wraps a list return under {"result": [...]}
     rows = structured["result"] if isinstance(structured, dict) else structured
     assert rows[0]["run_id"] == "r1"

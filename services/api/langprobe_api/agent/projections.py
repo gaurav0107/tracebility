@@ -73,8 +73,7 @@ def _project_span(span: dict) -> ProjectedSpan:
         latency_ms=int(span.get("latency_ms") or 0),
         inputs_preview=truncate(inputs, _PER_SPAN_PREVIEW_CHARS),
         outputs_preview=truncate(outputs, _PER_SPAN_PREVIEW_CHARS),
-        truncated=len(inputs) > _PER_SPAN_PREVIEW_CHARS
-        or len(outputs) > _PER_SPAN_PREVIEW_CHARS,
+        truncated=len(inputs) > _PER_SPAN_PREVIEW_CHARS or len(outputs) > _PER_SPAN_PREVIEW_CHARS,
     )
 
 
@@ -99,9 +98,7 @@ def _summary(run: dict, span_count: int) -> str:
     return " · ".join(parts)
 
 
-def project_run(
-    run: dict, spans: list[dict], *, token_budget: int = 2000
-) -> ProjectedRun:
+def project_run(run: dict, spans: list[dict], *, token_budget: int = 2000) -> ProjectedRun:
     """Project a run + its spans into a token-budgeted, agent-legible view."""
     run_id = str(run.get("run_id") or "")
     name = str(run.get("name") or "")

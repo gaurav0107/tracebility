@@ -70,9 +70,7 @@ async def eval_reliability(
         )
     except Exception as exc:  # noqa: BLE001
         log.warning("eval-reliability query failed", error=str(exc))
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE, "data plane unavailable"
-        ) from exc
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "data plane unavailable") from exc
 
     report = compute_reliability(
         [

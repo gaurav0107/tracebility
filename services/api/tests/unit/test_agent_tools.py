@@ -32,10 +32,17 @@ class _FakeCH:
 
 @pytest.mark.asyncio
 async def test_find_failed_runs_returns_compact_rows():
-    ch = _FakeCH(runs=[
-        {"run_id": "r1", "name": "loop", "error_kind": "ToolError",
-         "error_message": "500", "start_time": "2026-06-29T00:00:00Z"},
-    ])
+    ch = _FakeCH(
+        runs=[
+            {
+                "run_id": "r1",
+                "name": "loop",
+                "error_kind": "ToolError",
+                "error_message": "500",
+                "start_time": "2026-06-29T00:00:00Z",
+            },
+        ]
+    )
     out = await find_failed_runs(ch, "proj-1", limit=10)
     assert len(out) == 1
     assert out[0]["run_id"] == "r1"
@@ -47,15 +54,33 @@ async def test_find_failed_runs_returns_compact_rows():
 @pytest.mark.asyncio
 async def test_get_run_agent_view_projects_within_budget():
     ch = _FakeCH(
-        run={"run_id": "r1", "name": "loop", "status": "error",
-             "kind": "chain", "error_kind": "ToolError",
-             "error_message": "search 500"},
+        run={
+            "run_id": "r1",
+            "name": "loop",
+            "status": "error",
+            "kind": "chain",
+            "error_kind": "ToolError",
+            "error_message": "search 500",
+        },
         spans=[
-            {"span_id": "s1", "kind": "llm", "status": "ok",
-             "name": "plan", "inputs": "hi", "outputs": "ok", "latency_ms": 50},
-            {"span_id": "s2", "kind": "tool", "status": "error",
-             "name": "search", "inputs": "q", "outputs": "boom",
-             "latency_ms": 200},
+            {
+                "span_id": "s1",
+                "kind": "llm",
+                "status": "ok",
+                "name": "plan",
+                "inputs": "hi",
+                "outputs": "ok",
+                "latency_ms": 50,
+            },
+            {
+                "span_id": "s2",
+                "kind": "tool",
+                "status": "error",
+                "name": "search",
+                "inputs": "q",
+                "outputs": "boom",
+                "latency_ms": 200,
+            },
         ],
     )
     view = await get_run_agent_view(ch, "proj-1", "r1", token_budget=2000)

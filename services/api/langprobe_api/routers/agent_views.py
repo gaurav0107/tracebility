@@ -58,9 +58,7 @@ async def agent_failed_runs(
         runs = await find_failed_runs(ch, project_id, limit=limit)
     except Exception as exc:  # noqa: BLE001
         log.warning("agent failed-runs query failed", error=str(exc))
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE, "data plane unavailable"
-        ) from exc
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "data plane unavailable") from exc
     return {"runs": runs}
 
 
@@ -74,14 +72,10 @@ async def agent_run_view(
 ):
     ch = await _authorize(request, principal, project_id)
     try:
-        view = await get_run_agent_view(
-            ch, project_id, run_id, token_budget=token_budget
-        )
+        view = await get_run_agent_view(ch, project_id, run_id, token_budget=token_budget)
     except Exception as exc:  # noqa: BLE001
         log.warning("agent run-view query failed", run_id=run_id, error=str(exc))
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE, "data plane unavailable"
-        ) from exc
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "data plane unavailable") from exc
     if view is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "run not found")
     return view

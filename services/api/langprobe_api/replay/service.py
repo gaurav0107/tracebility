@@ -31,7 +31,7 @@ _MAX_DISPATCH_TOKENS = 1024
 
 
 async def load_spans(
-    ch: ClickHouseQuery, project_id: UUID, run_id: UUID
+    ch: ClickHouseQuery, org_id: UUID, project_id: UUID, run_id: UUID
 ) -> list[dict[str, Any]]:
     rows = await ch.query(
         """
@@ -41,26 +41,36 @@ async def load_spans(
                toInt64(ifNull(dateDiff('millisecond', start_time, end_time), 0))
                    as latency_ms
           from span final
-         where project_id = {project_id:UUID}
+         where org_id = {org_id:UUID}
+           and project_id = {project_id:UUID}
            and run_id = {run_id:UUID}
          order by start_time asc
         """,
-        parameters={"project_id": str(project_id), "run_id": str(run_id)},
+        parameters={
+            "org_id": str(org_id),
+            "project_id": str(project_id),
+            "run_id": str(run_id),
+        },
     )
     return list(rows)
 
 
 async def capturable_span_ids(
-    ch: ClickHouseQuery, project_id: UUID, run_id: UUID
+    ch: ClickHouseQuery, org_id: UUID, project_id: UUID, run_id: UUID
 ) -> set[str]:
     rows = await ch.query(
         """
         select distinct toString(span_id) as span_id
           from replay_capture final
-         where project_id = {project_id:UUID}
+         where org_id = {org_id:UUID}
+           and project_id = {project_id:UUID}
            and run_id = {run_id:UUID}
         """,
-        parameters={"project_id": str(project_id), "run_id": str(run_id)},
+        parameters={
+            "org_id": str(org_id),
+            "project_id": str(project_id),
+            "run_id": str(run_id),
+        },
     )
     return {str(r["span_id"]) for r in rows}
 
@@ -68,12 +78,15 @@ async def capturable_span_ids(
 def build_gateway_dispatch(pool: asyncpg.Pool, project_id: UUID, replay_run_id: UUID):
     """A dispatch closure that re-executes one edited LLM span via the gateway."""
 
-    async def dispatch(
-        span: dict[str, Any], span_edits: list[ReplayEdit]
-    ) -> DispatchOutcome:
+    async def dispatch(span: dict[str, Any], span_edits: list[ReplayEdit]) -> DispatchOutcome:
         if (span.get("kind") or "") != "llm":
             return DispatchOutcome(
-                "", "", 0.0, 0, 0, 0,
+                "",
+                "",
+                0.0,
+                0,
+                0,
+                0,
                 error=f"Phase 0 replays llm spans only; got kind={span.get('kind')!r}",
             )
         prompt, model, temperature, _applied, _skipped = apply_llm_edits(
@@ -126,6 +139,7 @@ async def run_span_replay(
     pool: asyncpg.Pool,
     ch: ClickHouseQuery,
     *,
+    org_id: UUID,
     project_id: UUID,
     run_id: UUID,
     edits: list[ReplayEdit],
@@ -134,15 +148,13 @@ async def run_span_replay(
     finished_at: Any,
 ) -> ReplayDiff | None:
     """Load, replay, diff, and persist. Returns None when the run has no spans."""
-    spans = await load_spans(ch, project_id, run_id)
-    capturable = await capturable_span_ids(ch, project_id, run_id)
+    spans = await load_spans(ch, org_id, project_id, run_id)
+    capturable = await capturable_span_ids(ch, org_id, project_id, run_id)
     if not spans:
         return None
 
     dispatch = build_gateway_dispatch(pool, project_id, replay_run_id)
-    plan = await execute_replay(
-        spans, edits, dispatch=dispatch, capturable_span_ids=capturable
-    )
+    plan = await execute_replay(spans, edits, dispatch=dispatch, capturable_span_ids=capturable)
     diff = compute_replay_diff(
         plan.pairs,
         edited_span_ids=plan.edited_span_ids,
@@ -161,7 +173,5 @@ async def run_span_replay(
         await ch.insert("replay_run", [row], column_names=list(REPLAY_RUN_COLUMNS))
     except Exception as exc:  # noqa: BLE001
         # Derived store — never fail the action on the replay_run write (ER-23).
-        log.warning(
-            "replay_run insert failed", replay_run_id=str(replay_run_id), error=str(exc)
-        )
+        log.warning("replay_run insert failed", replay_run_id=str(replay_run_id), error=str(exc))
     return diff

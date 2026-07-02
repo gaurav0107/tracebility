@@ -54,10 +54,17 @@ def _make_app(ch, *, role="viewer"):
 
 
 def test_failed_runs_returns_list():
-    ch = _FakeCH(runs=[
-        {"run_id": "r1", "name": "loop", "error_kind": "X",
-         "error_message": "boom", "start_time": "2026-06-29T00:00:00Z"}
-    ])
+    ch = _FakeCH(
+        runs=[
+            {
+                "run_id": "r1",
+                "name": "loop",
+                "error_kind": "X",
+                "error_message": "boom",
+                "start_time": "2026-06-29T00:00:00Z",
+            }
+        ]
+    )
     client = TestClient(_make_app(ch))
     res = client.get(f"/v1/agent/failed-runs?project_id={_PROJECT}")
     assert res.status_code == 200, res.text
@@ -66,10 +73,25 @@ def test_failed_runs_returns_list():
 
 def test_agent_view_returns_projection():
     ch = _FakeCH(
-        run={"run_id": "r1", "name": "loop", "status": "error",
-             "kind": "chain", "error_kind": "X", "error_message": "boom"},
-        spans=[{"span_id": "s1", "kind": "llm", "status": "ok", "name": "p",
-                "inputs": "i", "outputs": "o", "latency_ms": 10}],
+        run={
+            "run_id": "r1",
+            "name": "loop",
+            "status": "error",
+            "kind": "chain",
+            "error_kind": "X",
+            "error_message": "boom",
+        },
+        spans=[
+            {
+                "span_id": "s1",
+                "kind": "llm",
+                "status": "ok",
+                "name": "p",
+                "inputs": "i",
+                "outputs": "o",
+                "latency_ms": 10,
+            }
+        ],
     )
     client = TestClient(_make_app(ch))
     res = client.get(f"/v1/runs/{_RUN}/agent-view?project_id={_PROJECT}")

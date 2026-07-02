@@ -25,9 +25,7 @@ class ReliabilityReport:
     items_multi_judge: int = 0
 
 
-def compute_reliability(
-    rows: list[dict[str, Any]], *, threshold: float = 0.5
-) -> ReliabilityReport:
+def compute_reliability(rows: list[dict[str, Any]], *, threshold: float = 0.5) -> ReliabilityReport:
     if not rows:
         return ReliabilityReport(total_scores=0, schema_adherence=1.0)
 
@@ -43,9 +41,7 @@ def compute_reliability(
             ok_total += 1
             per_judge_ok[judge] += 1
     schema_adherence = ok_total / len(rows)
-    schema_by_judge = {
-        j: per_judge_ok[j] / per_judge_n[j] for j in per_judge_n
-    }
+    schema_by_judge = {j: per_judge_ok[j] / per_judge_n[j] for j in per_judge_n}
 
     # --- test-retest: stddev of score across repeats of the same (item, judge) ---
     by_item_judge: dict[tuple[str, str], list[float]] = defaultdict(list)

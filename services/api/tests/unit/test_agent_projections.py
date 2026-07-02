@@ -32,8 +32,9 @@ def _run(**kw):
     return base
 
 
-def _span(span_id, *, kind="llm", status="ok", name=None, inputs="in", outputs="out",
-          latency_ms=100):
+def _span(
+    span_id, *, kind="llm", status="ok", name=None, inputs="in", outputs="out", latency_ms=100
+):
     return {
         "span_id": span_id,
         "kind": kind,
@@ -96,8 +97,7 @@ def test_summary_has_status_error_and_counts():
 
 def test_respects_budget_drops_low_salience_spans():
     spans = [_span(f"s{i}", outputs="o" * 300) for i in range(40)]
-    p = project_run(_run(status="ok", error_kind="", error_message=""), spans,
-                    token_budget=400)
+    p = project_run(_run(status="ok", error_kind="", error_message=""), spans, token_budget=400)
     assert p.truncated is True
     assert len(p.spans) < 40
     assert p.est_tokens <= 400 * 1.2  # soft ceiling, never wildly over
