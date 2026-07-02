@@ -175,6 +175,11 @@ _REPLAY_KIND_BY_SPAN_KIND: dict[str, str] = {
     "llm": "llm_call",
     "tool": "tool_io",
     "retriever": "retrieval",
+    # A reranker is a retrieval-boundary IO whose output (re-ordered docs)
+    # can drift with the index/model, so capture it like a retrieval.
+    # guardrail/evaluator/workflow/task stay out: no clear deterministic
+    # IO boundary yet (guardrail: defer, per the design).
+    "reranker": "retrieval",
 }
 
 
