@@ -75,7 +75,9 @@ class ReplayResponse(BaseModel):
     deltas: list[SpanDeltaOut]
 
 
-async def _load_spans(ch: ClickHouseQuery, project_id: UUID, run_id: UUID) -> list[dict[str, Any]]:
+async def _load_spans(
+    ch: ClickHouseQuery, org_id: UUID, project_id: UUID, run_id: UUID
+) -> list[dict[str, Any]]:
     rows = await ch.query(
         """
         select toString(span_id) as span_id,
@@ -84,24 +86,36 @@ async def _load_spans(ch: ClickHouseQuery, project_id: UUID, run_id: UUID) -> li
                toInt64(ifNull(dateDiff('millisecond', start_time, end_time), 0))
                    as latency_ms
           from span final
-         where project_id = {project_id:UUID}
+         where org_id = {org_id:UUID}
+           and project_id = {project_id:UUID}
            and run_id = {run_id:UUID}
          order by start_time asc
         """,
-        parameters={"project_id": str(project_id), "run_id": str(run_id)},
+        parameters={
+            "org_id": str(org_id),
+            "project_id": str(project_id),
+            "run_id": str(run_id),
+        },
     )
     return list(rows)
 
 
-async def _capturable_span_ids(ch: ClickHouseQuery, project_id: UUID, run_id: UUID) -> set[str]:
+async def _capturable_span_ids(
+    ch: ClickHouseQuery, org_id: UUID, project_id: UUID, run_id: UUID
+) -> set[str]:
     rows = await ch.query(
         """
         select distinct toString(span_id) as span_id
           from replay_capture final
-         where project_id = {project_id:UUID}
+         where org_id = {org_id:UUID}
+           and project_id = {project_id:UUID}
            and run_id = {run_id:UUID}
         """,
-        parameters={"project_id": str(project_id), "run_id": str(run_id)},
+        parameters={
+            "org_id": str(org_id),
+            "project_id": str(project_id),
+            "run_id": str(run_id),
+        },
     )
     return {str(r["span_id"]) for r in rows}
 
@@ -114,12 +128,16 @@ async def replay_run(
     principal: Principal = Depends(require_user),
 ) -> ReplayResponse:
     pool: asyncpg.Pool = request.app.state.pg
-    workspace_id = await pool.fetchval(
-        "select workspace_id from project where id = $1 and deleted_at is null",
+    row = await pool.fetchrow(
+        "select p.workspace_id, w.org_id "
+        "from project p join workspace w on w.id = p.workspace_id "
+        "where p.id = $1 and p.deleted_at is null",
         body.project_id,
     )
-    if workspace_id is None:
+    if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+    workspace_id = row["workspace_id"]
+    org_id = row["org_id"]
     await assert_workspace_role(
         pool,
         user_id=principal.user_id,
@@ -135,8 +153,8 @@ async def replay_run(
         )
 
     try:
-        spans = await _load_spans(ch, body.project_id, run_id)
-        capturable = await _capturable_span_ids(ch, body.project_id, run_id)
+        spans = await _load_spans(ch, org_id, body.project_id, run_id)
+        capturable = await _capturable_span_ids(ch, org_id, body.project_id, run_id)
     except Exception as exc:  # noqa: BLE001
         log.warning("replay span load failed", run_id=str(run_id), error=str(exc))
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "data plane unavailable") from exc

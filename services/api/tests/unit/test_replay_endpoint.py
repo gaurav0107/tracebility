@@ -22,13 +22,17 @@ _SPAN_B = str(uuid4())
 
 
 class _FakePool:
-    def __init__(self, workspace_id, role):
+    def __init__(self, workspace_id, role, org_id=None):
         self._workspace_id = workspace_id
+        self._org_id = org_id or uuid4()
         self._role = role
 
-    async def fetchval(self, sql, *args):
+    async def fetchrow(self, sql, *args):
         if "from project" in sql:
-            return self._workspace_id
+            return {"workspace_id": self._workspace_id, "org_id": self._org_id}
+        return None
+
+    async def fetchval(self, sql, *args):
         if "workspace_member" in sql:
             return self._role
         return None
