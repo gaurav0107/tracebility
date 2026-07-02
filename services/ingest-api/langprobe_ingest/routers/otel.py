@@ -51,7 +51,9 @@ fields to hex in a tiny normalization pass before translation so
 from __future__ import annotations
 
 import base64
+import json
 from datetime import UTC, datetime
+from importlib.resources import files
 from typing import Any
 from uuid import UUID
 
@@ -74,25 +76,42 @@ log = structlog.get_logger("langprobe.ingest.otel")
 
 router = APIRouter(tags=["otel-shim"])
 
-_OPENINFERENCE_KIND: dict[str, RunKind] = {
-    "LLM": "llm",
-    "CHAIN": "chain",
-    "TOOL": "tool",
-    "AGENT": "agent",
-    "RETRIEVER": "retriever",
-    "EMBEDDING": "embedding",
-    "RERANKER": "retriever",
-    "GUARDRAIL": "chain",
-    "EVALUATOR": "chain",
-}
 
-_GEN_AI_OPERATION_KIND: dict[str, RunKind] = {
-    "chat": "llm",
-    "text_completion": "llm",
-    "completion": "llm",
-    "embeddings": "embedding",
-    "tool_calling": "tool",
-}
+# ---------------------------------------------------------------------------
+# Attribute mapping — versioned DATA, not code.
+#
+# The kind maps and the ordered fallback key-lists that classify incoming
+# OTel/OpenInference/OpenLLMetry spans into our canonical schema live in a
+# packaged JSON file (``attribute_mapping.json``, sibling of the package's
+# ``__init__``). It is loaded ONCE at import time into the module constants
+# below. Adding a new source convention (a new vendor's token/model key, a new
+# OpenInference kind alias) needs ZERO python changes — only a JSON edit.
+# ---------------------------------------------------------------------------
+
+
+def _load_attribute_mapping() -> dict[str, Any]:
+    # attribute_mapping.json lives at the package root (langprobe_ingest/),
+    # one level up from this routers/ subpackage.
+    raw = files("langprobe_ingest").joinpath("attribute_mapping.json").read_text(encoding="utf-8")
+    data = json.loads(raw)
+    if not isinstance(data.get("version"), int):
+        raise RuntimeError("attribute_mapping.json must have an integer 'version'")
+    return data
+
+
+_ATTRIBUTE_MAPPING: dict[str, Any] = _load_attribute_mapping()
+
+ATTRIBUTE_MAPPING_VERSION: int = _ATTRIBUTE_MAPPING["version"]
+
+_OPENINFERENCE_KIND: dict[str, RunKind] = dict(_ATTRIBUTE_MAPPING["openinference_kind"])
+_GEN_AI_OPERATION_KIND: dict[str, RunKind] = dict(_ATTRIBUTE_MAPPING["gen_ai_operation_kind"])
+_MODEL_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["model"])
+_TEMPERATURE_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["temperature"])
+_PROMPT_TOKEN_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["tokens"]["prompt"])
+_COMPLETION_TOKEN_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["tokens"]["completion"])
+_TOTAL_TOKEN_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["tokens"]["total"])
+_INPUT_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["io"]["input"])
+_OUTPUT_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["io"]["output"])
 
 _STATUS_OK = 1
 _STATUS_ERROR = 2
@@ -217,25 +236,28 @@ def _resolve_kind(attrs: dict[str, Any], name: str) -> RunKind:
     return "chain"
 
 
-def _resolve_model(attrs: dict[str, Any]) -> str | None:
-    for key in (
-        "llm.model_name",
-        "gen_ai.request.model",
-        "gen_ai.response.model",
-        "model",
-    ):
+def _first_str(attrs: dict[str, Any], keys: list[str]) -> str | None:
+    for key in keys:
         v = attrs.get(key)
         if isinstance(v, str) and v:
             return v
     return None
 
 
+def _first_int(attrs: dict[str, Any], keys: list[str]) -> int | None:
+    for key in keys:
+        parsed = _int(attrs.get(key))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _resolve_model(attrs: dict[str, Any]) -> str | None:
+    return _first_str(attrs, _MODEL_KEYS)
+
+
 def _resolve_temperature(attrs: dict[str, Any]) -> float | None:
-    for key in (
-        "llm.invocation_parameters.temperature",
-        "gen_ai.request.temperature",
-        "temperature",
-    ):
+    for key in _TEMPERATURE_KEYS:
         v = attrs.get(key)
         if v is None:
             continue
@@ -247,11 +269,9 @@ def _resolve_temperature(attrs: dict[str, Any]) -> float | None:
 
 
 def _resolve_tokens(attrs: dict[str, Any]) -> tuple[int | None, int | None, int | None]:
-    prompt = _int(attrs.get("llm.token_count.prompt") or attrs.get("gen_ai.usage.input_tokens"))
-    completion = _int(
-        attrs.get("llm.token_count.completion") or attrs.get("gen_ai.usage.output_tokens")
-    )
-    total = _int(attrs.get("llm.token_count.total"))
+    prompt = _first_int(attrs, _PROMPT_TOKEN_KEYS)
+    completion = _first_int(attrs, _COMPLETION_TOKEN_KEYS)
+    total = _first_int(attrs, _TOTAL_TOKEN_KEYS)
     if total is None and (prompt is not None or completion is not None):
         total = (prompt or 0) + (completion or 0)
     return prompt, completion, total
@@ -272,15 +292,17 @@ def _stringify(value: Any) -> str:
     return orjson.dumps(value).decode("utf-8")
 
 
+def _first_truthy(attrs: dict[str, Any], keys: list[str]) -> Any:
+    for key in keys:
+        v = attrs.get(key)
+        if v:
+            return v
+    return None
+
+
 def _resolve_io(attrs: dict[str, Any]) -> tuple[str | None, str | None]:
-    inputs: Any = (
-        attrs.get("input.value") or attrs.get("llm.input_messages") or attrs.get("gen_ai.prompt")
-    )
-    outputs: Any = (
-        attrs.get("output.value")
-        or attrs.get("llm.output_messages")
-        or attrs.get("gen_ai.completion")
-    )
+    inputs: Any = _first_truthy(attrs, _INPUT_KEYS)
+    outputs: Any = _first_truthy(attrs, _OUTPUT_KEYS)
     return (
         _stringify(inputs) if inputs is not None else None,
         _stringify(outputs) if outputs is not None else None,
