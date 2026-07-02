@@ -1201,6 +1201,7 @@ source = { editable = "services/ingest-worker" }
 dependencies = [
     { name = "clickhouse-connect" },
     { name = "langprobe-tenant" },
+    { name = "litellm" },
     { name = "orjson" },
     { name = "pydantic" },
     { name = "redis" },
@@ -1219,6 +1220,7 @@ dev = [
 requires-dist = [
     { name = "clickhouse-connect", specifier = ">=0.7" },
     { name = "langprobe-tenant", editable = "services/_shared/tenant" },
+    { name = "litellm", specifier = "==1.52.16" },
     { name = "orjson", specifier = ">=3.9" },
     { name = "pydantic", specifier = ">=2.6" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1" },
