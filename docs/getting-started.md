@@ -82,6 +82,19 @@ export LANGSMITH_API_KEY="lt_<public_id>.<secret>"
 The native `RunCreate` / `RunUpdate` shapes are translated by the shim and
 land in the same queue.
 
+## Instrument with your coding agent
+
+Already running an agent framework (CrewAI, DSPy, Pydantic AI, OpenAI Agents,
+LlamaIndex) or any OTel-instrumented app? You don't need a langprobe SDK — langprobe
+ingests plain OTLP/HTTP at `/v1/traces`.
+
+Point a coding agent (Claude Code, etc.) at the bundled skill and let it do the
+wiring: `.claude/skills/langprobe/SKILL.md`. It detects the framework, adds the right
+OpenInference instrumentor + OTLP exporter, sets `OTEL_EXPORTER_OTLP_ENDPOINT` to your
+langprobe host + `/v1/traces`, sets the API-key header, and verifies a trace appears
+in `/runs`. Framework recipes and troubleshooting live in
+`.claude/skills/langprobe/references/`.
+
 ## What's next
 
 - Datasets + replay (Phase 12+) — re-run a captured trace against a different

@@ -44,6 +44,16 @@ open http://localhost:3000
 
 The setup wizard will walk you through creating the first org, root user, and API key.
 
+## Instrument with your coding agent
+
+langprobe ingests plain OTLP/HTTP at `POST /v1/traces` — no proprietary SDK. A
+bundled agent skill (`.claude/skills/langprobe/SKILL.md`) gives a coding agent a
+hands-free procedure to instrument an arbitrary repo: detect the framework (CrewAI,
+DSPy, Pydantic AI, OpenAI Agents, LlamaIndex, or bare providers), add the right
+OpenInference instrumentor + OTLP exporter, point it at your langprobe host, and
+verify a trace lands in `/runs`. See [docs/getting-started.md](docs/getting-started.md)
+and [llms.txt](llms.txt).
+
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE).
