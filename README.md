@@ -2,9 +2,14 @@
 
 **The real debugger for agents.**
 
-Self-hosted LLM observability + eval-rigor + agent-replay. A LangSmith replacement that runs in your VPC and doubles as the debugger you reach for at 2am when an agent goes sideways.
+Self-hosted LLM observability + eval-rigor + agent-replay, in your VPC. Most tools in this space are dashboards for humans. The langprobe wedge is two things they don't do:
 
-> Status: pre-alpha. This repository is the initial scaffold for an 18-30 month build. Nothing here is production-ready.
+- **Replay.** Open a broken run, edit a prompt / model / tool, re-run it, and diff what changed — span by span, with a determinism verdict. The debugger you reach for at 2am.
+- **Agent-first.** The same surface is built for agents, not just people. Token-budgeted, LLM-legible run views over REST and MCP, so an agent can debug an agent: find the failed run, read its salient slice, replay an edit, read the diff.
+
+Plus eval-rigor that tells you whether your judges are trustworthy (schema-adherence, test-retest stability, inter-judge agreement), and LangSmith-compatible ingestion so migrating is import-and-go.
+
+> Status: pre-1.0, actively built. Tracing, evals, prompts, playground, replay (span-level), and the agent surface are working; the client-side replay harness (true control-flow re-execution) and a public SaaS gate are on the roadmap. Self-host it today with `docker compose`.
 
 ## What's in here
 

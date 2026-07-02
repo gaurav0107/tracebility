@@ -136,23 +136,52 @@ gcloud container clusters get-credentials langprobe-cluster-1 \
   --project=project-c4ff4ea3-775a-4e0c-9a3
 ```
 
-## 8. Create namespace + dev-deps
+> ⚠️ **The `deploy/k8s/dev-deps/` Postgres/ClickHouse/Redis are throwaway
+> single-replica pods on `emptyDir` (data is lost on restart) with no
+> NetworkPolicy.** They exist only to get a fresh cluster to `Ready`
+> before you point the app at managed databases. Do NOT treat them as a
+> durable production data plane. For anything serving real customer
+> traffic, replace them with managed Postgres/ClickHouse and set the app
+> secrets in step 9 to those managed URLs.
+
+## 8. Generate DB credentials, then create namespace + dev-deps
+
+Generate the database password **once** and store it in a Secret. The
+dev-deps Postgres/ClickHouse read their password from this Secret via
+`secretKeyRef`, so there is no default password baked into the manifests.
+The `get ... || create` guard is idempotent: re-running the runbook
+reuses the existing credentials instead of regenerating them (which would
+lock you out of existing data).
 
 ```bash
 kubectl create namespace langprobe --dry-run=client -o yaml | kubectl apply -f -
+
+# Random DB credentials, created only if they don't already exist.
+kubectl -n langprobe get secret langprobe-db-bootstrap >/dev/null 2>&1 \
+  || kubectl -n langprobe create secret generic langprobe-db-bootstrap \
+       --from-literal=postgres_password="$(openssl rand -hex 24)" \
+       --from-literal=clickhouse_password="$(openssl rand -hex 24)"
+
 kubectl apply -n langprobe -f deploy/k8s/dev-deps/
 kubectl rollout status -n langprobe deployment/postgres deployment/clickhouse deployment/redis --timeout=180s
 ```
 
 ## 9. Create k8s secrets
 
+Build the app's DSN secrets from the generated DB password (never a
+hardcoded literal). For a managed-database production setup, replace the
+values below with your managed connection strings instead.
+
 ```bash
+PG_PW="$(kubectl -n langprobe get secret langprobe-db-bootstrap -o jsonpath='{.data.postgres_password}' | base64 -d)"
+CH_PW="$(kubectl -n langprobe get secret langprobe-db-bootstrap -o jsonpath='{.data.clickhouse_password}' | base64 -d)"
+
 kubectl -n langprobe create secret generic langprobe-postgres \
-  --from-literal=dsn="postgres://langprobe:langprobe@postgres:5432/langprobe" \
+  --from-literal=dsn="postgres://langprobe:${PG_PW}@postgres:5432/langprobe" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl -n langprobe create secret generic langprobe-clickhouse \
-  --from-literal=url="http://langprobe:langprobe@clickhouse:8123/langprobe" \
+  --from-literal=url="http://langprobe:${CH_PW}@clickhouse:8123/langprobe" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl -n langprobe create secret generic langprobe-redis \
@@ -164,7 +193,7 @@ kubectl -n langprobe get secret langprobe-session >/dev/null 2>&1 \
        --from-literal=secret="$(openssl rand -hex 32)"
 ```
 
-Re-running the runbook will not regenerate the session secret.
+Re-running the runbook will not regenerate the DB or session secrets.
 
 ## 10. OAuth signup setup (Google + GitHub)
 

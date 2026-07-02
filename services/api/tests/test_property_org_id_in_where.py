@@ -33,6 +33,7 @@ _PENDING_ROUTERS = frozenset(
         "metrics.py",
         "playground.py",
         "poll_runs.py",
+        "reliability.py",
         "replays.py",
         "run_actions.py",
         "saved_views.py",

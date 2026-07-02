@@ -7,9 +7,24 @@ Purpose: let the first GKE deploy of `langprobe` reach Ready without
 requiring managed databases up front. Storage is `emptyDir`; deleting a pod
 loses the data.
 
+> **Security:** these are throwaway pods with no NetworkPolicy in front of
+> them, so any workload that can reach the `postgres`/`clickhouse` Services
+> in the namespace can talk to them. They must NOT hold real customer data.
+> Their password is **not** a committed default — Postgres and ClickHouse
+> read it from the `langprobe-db-bootstrap` Secret (keys `postgres_password`
+> / `clickhouse_password`) via `secretKeyRef`. Replace them with managed
+> databases before serving production traffic.
+
 ## Apply
 
+Create the credential Secret first (random, idempotent), then apply:
+
 ```bash
+kubectl -n langprobe get secret langprobe-db-bootstrap >/dev/null 2>&1 \
+  || kubectl -n langprobe create secret generic langprobe-db-bootstrap \
+       --from-literal=postgres_password="$(openssl rand -hex 24)" \
+       --from-literal=clickhouse_password="$(openssl rand -hex 24)"
+
 kubectl apply -n langprobe -f deploy/k8s/dev-deps/
 ```
 

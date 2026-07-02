@@ -426,9 +426,17 @@ async def create_user(
     pool: asyncpg.Pool = request.app.state.pg
     workspace_id = ctx.workspace_id
 
-    # Match-or-create the underlying app_user by email; this lets a
-    # user already in langprobe get attached to a SCIM-provisioned
-    # workspace without a duplicate row.
+    # Match-or-create the underlying app_user by email. A brand-new
+    # email is created and attached. An email that already exists
+    # globally may ONLY be attached if that account is already a member
+    # of THIS workspace (invited via /members or previously provisioned
+    # here).
+    #
+    # SECURITY (cross-tenant provisioning guard): without the membership
+    # check, a workspace admin could mint a SCIM token for their own
+    # workspace and POST /Users with any victim's email + role:"owner",
+    # silently grafting that global identity into their tenant. Existing
+    # accounts must be invited through the members API first.
     async with pool.acquire() as conn, conn.transaction():
         existing_user = await conn.fetchrow(
             "select id, email, deleted_at from app_user where lower(email) = lower($1)",
@@ -440,6 +448,19 @@ async def create_user(
                     409,
                     "User account is deactivated",
                     scim_type="uniqueness",
+                )
+            already_member = await conn.fetchval(
+                "select 1 from workspace_member where workspace_id = $1 and user_id = $2",
+                workspace_id,
+                existing_user["id"],
+            )
+            if not already_member:
+                _scim_error(
+                    403,
+                    "An account with this email already exists and is not a "
+                    "member of this workspace. Invite it via the members API "
+                    "before provisioning it through SCIM.",
+                    scim_type="mutability",
                 )
             user_id = existing_user["id"]
         else:
@@ -543,15 +564,21 @@ async def replace_user(
 
     async with pool.acquire() as conn, conn.transaction():
         row = await _fetch_mapping_for_update(conn, ctx.workspace_id, mapping_id)
+        # SECURITY: never let a workspace-scoped SCIM token rewrite the
+        # globally-shared app_user.email — email is the identity key for
+        # password login, OAuth and SSO resolution, so mutating it here
+        # would let a workspace admin hijack or shadow any global account.
+        # We only update the local display name; a differing userName is
+        # rejected rather than silently applied.
+        if user_name.lower() != (row["email"] or "").lower():
+            _scim_error(
+                400,
+                "Changing a provisioned user's email is not supported.",
+                scim_type="mutability",
+            )
         await conn.execute(
-            """
-                update app_user
-                   set email = $2,
-                       full_name = $3
-                 where id = $1
-                """,
+            "update app_user set full_name = $2 where id = $1",
             row["user_id"],
-            user_name,
             full_name or row["full_name"],
         )
         await conn.execute(
@@ -669,15 +696,19 @@ async def patch_user(
                     if isinstance(v, str):
                         new_email = v
 
+        # SECURITY: as with PUT, a workspace-scoped SCIM token must not
+        # rewrite the globally-shared app_user.email. Reject a changed
+        # userName/email rather than mutating the shared identity row;
+        # only the local display name is updated here.
+        if new_email.lower() != (row["email"] or "").lower():
+            _scim_error(
+                400,
+                "Changing a provisioned user's email is not supported.",
+                scim_type="mutability",
+            )
         await conn.execute(
-            """
-                update app_user
-                   set email = $2,
-                       full_name = $3
-                 where id = $1
-                """,
+            "update app_user set full_name = $2 where id = $1",
             user_id,
-            new_email,
             new_full_name,
         )
         await conn.execute(
