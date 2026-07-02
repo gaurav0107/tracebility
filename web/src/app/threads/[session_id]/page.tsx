@@ -28,6 +28,7 @@ interface ThreadRun {
 interface ThreadDetail {
   session_id: string;
   project_id: string;
+  end_user_id: string | null;
   turn_count: number;
   first_run_at: string;
   last_run_at: string;
@@ -75,6 +76,14 @@ export default async function ThreadDetailPage({
         />
         {detail ? (
           <>
+            {detail.end_user_id ? (
+              <div style={{ fontSize: 12, color: "var(--text-3)" }}>
+                End user:{" "}
+                <span className="mono" style={{ color: "var(--text-2)" }}>
+                  {detail.end_user_id}
+                </span>
+              </div>
+            ) : null}
             <SummaryGrid detail={detail} />
             <RunsCard runs={detail.runs} />
           </>

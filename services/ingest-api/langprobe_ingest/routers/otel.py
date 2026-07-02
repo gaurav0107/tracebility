@@ -112,6 +112,9 @@ _COMPLETION_TOKEN_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["tokens"]["completio
 _TOTAL_TOKEN_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["tokens"]["total"])
 _INPUT_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["io"]["input"])
 _OUTPUT_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["io"]["output"])
+# End-user identity (the human the agent serves), distinct from the operator.
+# Only stamped on the synthesized Run from the trace's root span attributes.
+_END_USER_ID_KEYS: list[str] = list(_ATTRIBUTE_MAPPING.get("end_user_id") or [])
 
 _STATUS_OK = 1
 _STATUS_ERROR = 2
@@ -441,6 +444,10 @@ def _translate_spans(
         if not spans:
             continue
         root = bucket["root_span"] or spans[0]
+        # End-user identity is a run-level, root-span-sourced concern: the
+        # human the agent serves. Read it from the root span's attributes
+        # via the ordered fallback chain (enduser.id / user.id / ...).
+        end_user_id = _first_str(root.attributes, _END_USER_ID_KEYS)
         # If the trace has an error span, the run is error; else ok.
         has_error = any(s.status == "error" for s in spans)
         # Token / cost totals aggregate the LLM spans for the run.
@@ -459,6 +466,7 @@ def _translate_spans(
                 end_time=bucket["max_end"],
                 inputs=root.inputs,
                 outputs=root.outputs,
+                end_user_id=end_user_id,
                 prompt_tokens=prompt_tot or None,
                 completion_tokens=comp_tot or None,
                 total_tokens=total_tot or None,

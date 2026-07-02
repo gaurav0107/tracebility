@@ -85,6 +85,8 @@ class RunIngest(BaseModel):
     cost_usd: float | None = None
     session_id: str | None = None
     user_id: str | None = None
+    end_user_id: str | None = None
+    end_user_metadata: dict[str, Any] | None = None
     tags: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
     error_kind: str | None = None

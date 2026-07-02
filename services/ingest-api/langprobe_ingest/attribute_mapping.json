@@ -56,5 +56,10 @@
       "llm.output_messages",
       "gen_ai.completion"
     ]
-  }
+  },
+  "end_user_id": [
+    "enduser.id",
+    "user.id",
+    "session.user.id"
+  ]
 }
