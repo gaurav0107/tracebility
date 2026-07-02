@@ -7,7 +7,11 @@ slot — the real Presidio integration is a follow-up swap behind the same
 :class:`Redactor` interface.
 
 What this stub does:
-- Walks the inputs/outputs strings and metadata of each run/span.
+- Walks the inputs/outputs/error_message strings AND the structured
+  metadata/attributes/extra fields (recursively, every string leaf) of
+  each run/span. This matters because the OTLP shim copies prompt and
+  completion content into span ``attributes``; redacting only
+  inputs/outputs would leave the same PII in the attributes column.
 - Replaces matches of a small built-in regex set with stable tokens
   (``[REDACTED:EMAIL]`` etc.) so downstream eval/replay is still useful.
 - Records redaction counts on the envelope so operators can audit signal
@@ -121,18 +125,31 @@ class Redactor:
             agg.update(self._redact_span(span))
         return agg
 
+    # Free-form string fields redacted directly.
+    _STRING_FIELDS = ("inputs", "outputs", "error_message")
+    # Structured (dict/list) fields whose string leaves also carry PII.
+    # `metadata` is persisted on runs and `attributes` on spans; the OTLP
+    # shim also copies prompt/completion content into span `attributes`,
+    # so scrubbing only inputs/outputs would leave the same PII behind
+    # here. `extra` covers the LangSmith shim's `extra.metadata`.
+    _STRUCTURED_FIELDS = ("metadata", "attributes", "extra")
+
     def _redact_run(self, run: dict[str, Any]) -> Counter[str]:
         agg: Counter[str] = Counter()
-        for key in ("inputs", "outputs", "error_message"):
+        for key in self._STRING_FIELDS:
             agg.update(self._redact_field(run, key))
+        for key in self._STRUCTURED_FIELDS:
+            agg.update(self._redact_structure(run, key))
         for span in run.get("spans") or []:
             agg.update(self._redact_span(span))
         return agg
 
     def _redact_span(self, span: dict[str, Any]) -> Counter[str]:
         agg: Counter[str] = Counter()
-        for key in ("inputs", "outputs", "error_message"):
+        for key in self._STRING_FIELDS:
             agg.update(self._redact_field(span, key))
+        for key in self._STRUCTURED_FIELDS:
+            agg.update(self._redact_structure(span, key))
         return agg
 
     def _redact_field(self, obj: dict[str, Any], key: str) -> Counter[str]:
@@ -143,6 +160,40 @@ class Redactor:
         if result.counts:
             obj[key] = result.text
         return result.counts
+
+    def _redact_structure(self, obj: dict[str, Any], key: str) -> Counter[str]:
+        """Redact string leaves inside a nested dict/list field, in place."""
+        if key not in obj:
+            return Counter()
+        new_value, counts = self._redact_value(obj[key])
+        if counts:
+            obj[key] = new_value
+        return counts
+
+    def _redact_value(self, value: Any) -> tuple[Any, Counter[str]]:
+        """Recursively redact string leaves in dicts/lists/strings.
+
+        Returns the (possibly rebuilt) value and the aggregate counts.
+        Non-string scalars (int/float/bool/None) pass through untouched.
+        """
+        if isinstance(value, str):
+            result = self.redact_text(value)
+            return result.text, result.counts
+        counts: Counter[str] = Counter()
+        if isinstance(value, dict):
+            new_dict: dict[Any, Any] = {}
+            for k, item in value.items():
+                new_dict[k], item_counts = self._redact_value(item)
+                counts.update(item_counts)
+            return new_dict, counts
+        if isinstance(value, list):
+            new_list: list[Any] = []
+            for item in value:
+                new_item, item_counts = self._redact_value(item)
+                new_list.append(new_item)
+                counts.update(item_counts)
+            return new_list, counts
+        return value, counts
 
 
 def redactor_from_env(enabled_flag: bool) -> Redactor:
