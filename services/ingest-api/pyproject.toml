@@ -14,6 +14,7 @@ dependencies = [
     "orjson>=3.9",
     "structlog>=24.1",
     "argon2-cffi>=23.1",
+    "opentelemetry-proto>=1.43",
     "langprobe-tenant",
 ]
 

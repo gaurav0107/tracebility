@@ -34,13 +34,23 @@ required field (trace_id / span_id / name), we skip THAT span and
 log; we don't tank the batch. The 202 ack reports accepted counts
 honestly.
 
-Format note: this endpoint accepts OTLP HTTP/JSON. The protobuf
-variant is feature-equivalent; we'll add it when an OTel user files
-the ticket. Most "OTLP HTTP" setups today use JSON in practice.
+Format note: this endpoint accepts BOTH OTLP HTTP/JSON and OTLP
+HTTP/protobuf. A stock ``opentelemetry-exporter-otlp-proto-http``
+exporter sends ``application/x-protobuf``; the older/manual JSON
+setups send ``application/json``. We dispatch on Content-Type and
+translate both into the identical native ``IngestBatch`` — the rest
+of the pipeline (redaction, enqueue, quota, 202 ack) is format-blind.
+
+Protobuf id encoding: proto ``trace_id`` / ``span_id`` / ``parent_span_id``
+are ``bytes`` fields. ``MessageToDict`` base64-encodes them, but the
+translator expects hex (OTLP-JSON convention). We rewrite those three
+fields to hex in a tiny normalization pass before translation so
+``_trace_id_to_uuid`` / ``_span_id_to_uuid`` stay format-agnostic.
 """
 
 from __future__ import annotations
 
+import base64
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -48,7 +58,12 @@ from uuid import UUID
 import orjson
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from google.protobuf.json_format import MessageToDict
+from google.protobuf.message import DecodeError
 from langprobe_tenant import QuotaMeter, TenantContext
+from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+    ExportTraceServiceRequest,
+)
 
 from ..enqueue import IngestEnqueue, serialize_batch
 from ..limits import INGEST_GATING_METER, enforce_quota
@@ -277,7 +292,10 @@ def _resolve_status(span: dict[str, Any]) -> tuple[str, str | None, str | None]:
     code = raw.get("code")
     message = raw.get("message")
     if isinstance(code, str):
-        code_n = {"OK": _STATUS_OK, "ERROR": _STATUS_ERROR}.get(code.upper(), 0)
+        # JSON wire uses "OK"/"ERROR"; protobuf MessageToDict emits the proto
+        # enum name "STATUS_CODE_OK"/"STATUS_CODE_ERROR". Accept both.
+        normalized = code.upper().removeprefix("STATUS_CODE_")
+        code_n = {"OK": _STATUS_OK, "ERROR": _STATUS_ERROR}.get(normalized, 0)
     else:
         try:
             code_n = int(code or 0)
@@ -433,6 +451,65 @@ def _translate_spans(
 
 
 # ---------------------------------------------------------------------------
+# Protobuf decode
+# ---------------------------------------------------------------------------
+
+
+def _b64_id_to_hex(value: Any) -> Any:
+    """MessageToDict base64-encodes proto ``bytes`` ids; rewrite to hex.
+
+    Leaves anything that isn't a decodable base64 string untouched so the
+    downstream ``_trace_id_to_uuid`` / ``_span_id_to_uuid`` length checks make
+    the final accept/skip decision (ER-23: never crash the batch on one bad id).
+    """
+    if not isinstance(value, str) or not value:
+        return value
+    try:
+        return base64.b64decode(value, validate=True).hex()
+    except (ValueError, TypeError):
+        return value
+
+
+def _normalize_protobuf_ids(payload: dict[str, Any]) -> None:
+    """Walk resourceSpans→scopeSpans→spans, rewriting id bytes to hex in place."""
+    for rs in payload.get("resourceSpans") or []:
+        if not isinstance(rs, dict):
+            continue
+        for ss in rs.get("scopeSpans") or []:
+            if not isinstance(ss, dict):
+                continue
+            for span in ss.get("spans") or []:
+                if not isinstance(span, dict):
+                    continue
+                if "traceId" in span:
+                    span["traceId"] = _b64_id_to_hex(span["traceId"])
+                if "spanId" in span:
+                    span["spanId"] = _b64_id_to_hex(span["spanId"])
+                if "parentSpanId" in span:
+                    span["parentSpanId"] = _b64_id_to_hex(span["parentSpanId"])
+
+
+def _decode_protobuf_body(raw: bytes) -> dict[str, Any]:
+    """Parse an OTLP ExportTraceServiceRequest into the JSON dict shape.
+
+    ``MessageToDict`` yields the same camelCase keys (``resourceSpans``,
+    ``scopeSpans``, ``startTimeUnixNano``, attribute ``stringValue`` etc.) the
+    JSON path already consumes; we then hex-normalize the id byte fields.
+    """
+    req_pb = ExportTraceServiceRequest()
+    try:
+        req_pb.ParseFromString(raw)
+    except DecodeError as exc:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "malformed OTLP protobuf payload",
+        ) from exc
+    payload = MessageToDict(req_pb)
+    _normalize_protobuf_ids(payload)
+    return payload
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
@@ -444,15 +521,33 @@ def _translate_spans(
 )
 async def otel_traces(
     request: Request,
-    body: dict[str, Any],
     ctx: TenantContext = Depends(enforce_quota),
 ) -> IngestAck:
-    """OTLP HTTP/JSON intake.
+    """OTLP HTTP intake (JSON and protobuf).
 
-    The OTel SDK's HTTP exporter posts JSON to ``/v1/traces`` by
-    default. We accept exactly that shape, translate, and enqueue
-    on the same Redis queue as native ingest.
+    A stock OTel HTTP exporter posts ``application/x-protobuf`` to
+    ``/v1/traces``; manual/legacy setups post ``application/json``. We
+    dispatch on Content-Type, translate to the same ``IngestBatch``, and
+    enqueue on the same Redis queue as native ingest.
     """
+    content_type = request.headers.get("content-type", "")
+    raw = await request.body()
+    if "protobuf" in content_type:
+        body = _decode_protobuf_body(raw)
+    else:
+        try:
+            body = orjson.loads(raw) if raw else {}
+        except orjson.JSONDecodeError as exc:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "invalid JSON body",
+            ) from exc
+        if not isinstance(body, dict):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "OTLP payload must be a JSON object",
+            )
+
     if "resourceSpans" not in body:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
