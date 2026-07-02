@@ -1081,7 +1081,7 @@ function KindBadge({ kind }: { kind: string }) {
       ? "kind-llm"
       : k === "tool"
         ? "kind-tool"
-        : k === "retriever" || k === "retr"
+        : k === "retriever" || k === "retr" || k === "reranker"
           ? "kind-retr"
           : "kind-chain";
   return <span className={`kind-badge ${cls}`}>{kind || "chain"}</span>;
@@ -1149,7 +1149,7 @@ function barColorForKind(kind: string): { fill: string; stroke: string } {
     return { fill: "var(--kind-llm-bg)", stroke: "var(--kind-llm)" };
   if (k === "tool")
     return { fill: "var(--kind-tool-bg)", stroke: "var(--kind-tool)" };
-  if (k === "retriever" || k === "retr")
+  if (k === "retriever" || k === "retr" || k === "reranker")
     return { fill: "var(--kind-retr-bg)", stroke: "var(--kind-retr)" };
   return { fill: "var(--kind-chain-bg)", stroke: "var(--kind-chain)" };
 }

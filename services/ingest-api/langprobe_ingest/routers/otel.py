@@ -34,21 +34,38 @@ required field (trace_id / span_id / name), we skip THAT span and
 log; we don't tank the batch. The 202 ack reports accepted counts
 honestly.
 
-Format note: this endpoint accepts OTLP HTTP/JSON. The protobuf
-variant is feature-equivalent; we'll add it when an OTel user files
-the ticket. Most "OTLP HTTP" setups today use JSON in practice.
+Format note: this endpoint accepts BOTH OTLP HTTP/JSON and OTLP
+HTTP/protobuf. A stock ``opentelemetry-exporter-otlp-proto-http``
+exporter sends ``application/x-protobuf``; the older/manual JSON
+setups send ``application/json``. We dispatch on Content-Type and
+translate both into the identical native ``IngestBatch`` — the rest
+of the pipeline (redaction, enqueue, quota, 202 ack) is format-blind.
+
+Protobuf id encoding: proto ``trace_id`` / ``span_id`` / ``parent_span_id``
+are ``bytes`` fields. ``MessageToDict`` base64-encodes them, but the
+translator expects hex (OTLP-JSON convention). We rewrite those three
+fields to hex in a tiny normalization pass before translation so
+``_trace_id_to_uuid`` / ``_span_id_to_uuid`` stay format-agnostic.
 """
 
 from __future__ import annotations
 
+import base64
+import json
 from datetime import UTC, datetime
+from importlib.resources import files
 from typing import Any
 from uuid import UUID
 
 import orjson
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from google.protobuf.json_format import MessageToDict
+from google.protobuf.message import DecodeError
 from langprobe_tenant import QuotaMeter, TenantContext
+from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+    ExportTraceServiceRequest,
+)
 
 from ..enqueue import IngestEnqueue, serialize_batch
 from ..limits import INGEST_GATING_METER, enforce_quota
@@ -59,25 +76,45 @@ log = structlog.get_logger("langprobe.ingest.otel")
 
 router = APIRouter(tags=["otel-shim"])
 
-_OPENINFERENCE_KIND: dict[str, RunKind] = {
-    "LLM": "llm",
-    "CHAIN": "chain",
-    "TOOL": "tool",
-    "AGENT": "agent",
-    "RETRIEVER": "retriever",
-    "EMBEDDING": "embedding",
-    "RERANKER": "retriever",
-    "GUARDRAIL": "chain",
-    "EVALUATOR": "chain",
-}
 
-_GEN_AI_OPERATION_KIND: dict[str, RunKind] = {
-    "chat": "llm",
-    "text_completion": "llm",
-    "completion": "llm",
-    "embeddings": "embedding",
-    "tool_calling": "tool",
-}
+# ---------------------------------------------------------------------------
+# Attribute mapping — versioned DATA, not code.
+#
+# The kind maps and the ordered fallback key-lists that classify incoming
+# OTel/OpenInference/OpenLLMetry spans into our canonical schema live in a
+# packaged JSON file (``attribute_mapping.json``, sibling of the package's
+# ``__init__``). It is loaded ONCE at import time into the module constants
+# below. Adding a new source convention (a new vendor's token/model key, a new
+# OpenInference kind alias) needs ZERO python changes — only a JSON edit.
+# ---------------------------------------------------------------------------
+
+
+def _load_attribute_mapping() -> dict[str, Any]:
+    # attribute_mapping.json lives at the package root (langprobe_ingest/),
+    # one level up from this routers/ subpackage.
+    raw = files("langprobe_ingest").joinpath("attribute_mapping.json").read_text(encoding="utf-8")
+    data = json.loads(raw)
+    if not isinstance(data.get("version"), int):
+        raise RuntimeError("attribute_mapping.json must have an integer 'version'")
+    return data
+
+
+_ATTRIBUTE_MAPPING: dict[str, Any] = _load_attribute_mapping()
+
+ATTRIBUTE_MAPPING_VERSION: int = _ATTRIBUTE_MAPPING["version"]
+
+_OPENINFERENCE_KIND: dict[str, RunKind] = dict(_ATTRIBUTE_MAPPING["openinference_kind"])
+_GEN_AI_OPERATION_KIND: dict[str, RunKind] = dict(_ATTRIBUTE_MAPPING["gen_ai_operation_kind"])
+_MODEL_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["model"])
+_TEMPERATURE_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["temperature"])
+_PROMPT_TOKEN_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["tokens"]["prompt"])
+_COMPLETION_TOKEN_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["tokens"]["completion"])
+_TOTAL_TOKEN_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["tokens"]["total"])
+_INPUT_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["io"]["input"])
+_OUTPUT_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["io"]["output"])
+# End-user identity (the human the agent serves), distinct from the operator.
+# Only stamped on the synthesized Run from the trace's root span attributes.
+_END_USER_ID_KEYS: list[str] = list(_ATTRIBUTE_MAPPING.get("end_user_id") or [])
 
 _STATUS_OK = 1
 _STATUS_ERROR = 2
@@ -202,25 +239,28 @@ def _resolve_kind(attrs: dict[str, Any], name: str) -> RunKind:
     return "chain"
 
 
-def _resolve_model(attrs: dict[str, Any]) -> str | None:
-    for key in (
-        "llm.model_name",
-        "gen_ai.request.model",
-        "gen_ai.response.model",
-        "model",
-    ):
+def _first_str(attrs: dict[str, Any], keys: list[str]) -> str | None:
+    for key in keys:
         v = attrs.get(key)
         if isinstance(v, str) and v:
             return v
     return None
 
 
+def _first_int(attrs: dict[str, Any], keys: list[str]) -> int | None:
+    for key in keys:
+        parsed = _int(attrs.get(key))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _resolve_model(attrs: dict[str, Any]) -> str | None:
+    return _first_str(attrs, _MODEL_KEYS)
+
+
 def _resolve_temperature(attrs: dict[str, Any]) -> float | None:
-    for key in (
-        "llm.invocation_parameters.temperature",
-        "gen_ai.request.temperature",
-        "temperature",
-    ):
+    for key in _TEMPERATURE_KEYS:
         v = attrs.get(key)
         if v is None:
             continue
@@ -232,11 +272,9 @@ def _resolve_temperature(attrs: dict[str, Any]) -> float | None:
 
 
 def _resolve_tokens(attrs: dict[str, Any]) -> tuple[int | None, int | None, int | None]:
-    prompt = _int(attrs.get("llm.token_count.prompt") or attrs.get("gen_ai.usage.input_tokens"))
-    completion = _int(
-        attrs.get("llm.token_count.completion") or attrs.get("gen_ai.usage.output_tokens")
-    )
-    total = _int(attrs.get("llm.token_count.total"))
+    prompt = _first_int(attrs, _PROMPT_TOKEN_KEYS)
+    completion = _first_int(attrs, _COMPLETION_TOKEN_KEYS)
+    total = _first_int(attrs, _TOTAL_TOKEN_KEYS)
     if total is None and (prompt is not None or completion is not None):
         total = (prompt or 0) + (completion or 0)
     return prompt, completion, total
@@ -257,15 +295,17 @@ def _stringify(value: Any) -> str:
     return orjson.dumps(value).decode("utf-8")
 
 
+def _first_truthy(attrs: dict[str, Any], keys: list[str]) -> Any:
+    for key in keys:
+        v = attrs.get(key)
+        if v:
+            return v
+    return None
+
+
 def _resolve_io(attrs: dict[str, Any]) -> tuple[str | None, str | None]:
-    inputs: Any = (
-        attrs.get("input.value") or attrs.get("llm.input_messages") or attrs.get("gen_ai.prompt")
-    )
-    outputs: Any = (
-        attrs.get("output.value")
-        or attrs.get("llm.output_messages")
-        or attrs.get("gen_ai.completion")
-    )
+    inputs: Any = _first_truthy(attrs, _INPUT_KEYS)
+    outputs: Any = _first_truthy(attrs, _OUTPUT_KEYS)
     return (
         _stringify(inputs) if inputs is not None else None,
         _stringify(outputs) if outputs is not None else None,
@@ -277,7 +317,10 @@ def _resolve_status(span: dict[str, Any]) -> tuple[str, str | None, str | None]:
     code = raw.get("code")
     message = raw.get("message")
     if isinstance(code, str):
-        code_n = {"OK": _STATUS_OK, "ERROR": _STATUS_ERROR}.get(code.upper(), 0)
+        # JSON wire uses "OK"/"ERROR"; protobuf MessageToDict emits the proto
+        # enum name "STATUS_CODE_OK"/"STATUS_CODE_ERROR". Accept both.
+        normalized = code.upper().removeprefix("STATUS_CODE_")
+        code_n = {"OK": _STATUS_OK, "ERROR": _STATUS_ERROR}.get(normalized, 0)
     else:
         try:
             code_n = int(code or 0)
@@ -401,6 +444,10 @@ def _translate_spans(
         if not spans:
             continue
         root = bucket["root_span"] or spans[0]
+        # End-user identity is a run-level, root-span-sourced concern: the
+        # human the agent serves. Read it from the root span's attributes
+        # via the ordered fallback chain (enduser.id / user.id / ...).
+        end_user_id = _first_str(root.attributes, _END_USER_ID_KEYS)
         # If the trace has an error span, the run is error; else ok.
         has_error = any(s.status == "error" for s in spans)
         # Token / cost totals aggregate the LLM spans for the run.
@@ -419,6 +466,7 @@ def _translate_spans(
                 end_time=bucket["max_end"],
                 inputs=root.inputs,
                 outputs=root.outputs,
+                end_user_id=end_user_id,
                 prompt_tokens=prompt_tot or None,
                 completion_tokens=comp_tot or None,
                 total_tokens=total_tot or None,
@@ -433,6 +481,65 @@ def _translate_spans(
 
 
 # ---------------------------------------------------------------------------
+# Protobuf decode
+# ---------------------------------------------------------------------------
+
+
+def _b64_id_to_hex(value: Any) -> Any:
+    """MessageToDict base64-encodes proto ``bytes`` ids; rewrite to hex.
+
+    Leaves anything that isn't a decodable base64 string untouched so the
+    downstream ``_trace_id_to_uuid`` / ``_span_id_to_uuid`` length checks make
+    the final accept/skip decision (ER-23: never crash the batch on one bad id).
+    """
+    if not isinstance(value, str) or not value:
+        return value
+    try:
+        return base64.b64decode(value, validate=True).hex()
+    except (ValueError, TypeError):
+        return value
+
+
+def _normalize_protobuf_ids(payload: dict[str, Any]) -> None:
+    """Walk resourceSpans→scopeSpans→spans, rewriting id bytes to hex in place."""
+    for rs in payload.get("resourceSpans") or []:
+        if not isinstance(rs, dict):
+            continue
+        for ss in rs.get("scopeSpans") or []:
+            if not isinstance(ss, dict):
+                continue
+            for span in ss.get("spans") or []:
+                if not isinstance(span, dict):
+                    continue
+                if "traceId" in span:
+                    span["traceId"] = _b64_id_to_hex(span["traceId"])
+                if "spanId" in span:
+                    span["spanId"] = _b64_id_to_hex(span["spanId"])
+                if "parentSpanId" in span:
+                    span["parentSpanId"] = _b64_id_to_hex(span["parentSpanId"])
+
+
+def _decode_protobuf_body(raw: bytes) -> dict[str, Any]:
+    """Parse an OTLP ExportTraceServiceRequest into the JSON dict shape.
+
+    ``MessageToDict`` yields the same camelCase keys (``resourceSpans``,
+    ``scopeSpans``, ``startTimeUnixNano``, attribute ``stringValue`` etc.) the
+    JSON path already consumes; we then hex-normalize the id byte fields.
+    """
+    req_pb = ExportTraceServiceRequest()
+    try:
+        req_pb.ParseFromString(raw)
+    except DecodeError as exc:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "malformed OTLP protobuf payload",
+        ) from exc
+    payload = MessageToDict(req_pb)
+    _normalize_protobuf_ids(payload)
+    return payload
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
@@ -444,15 +551,33 @@ def _translate_spans(
 )
 async def otel_traces(
     request: Request,
-    body: dict[str, Any],
     ctx: TenantContext = Depends(enforce_quota),
 ) -> IngestAck:
-    """OTLP HTTP/JSON intake.
+    """OTLP HTTP intake (JSON and protobuf).
 
-    The OTel SDK's HTTP exporter posts JSON to ``/v1/traces`` by
-    default. We accept exactly that shape, translate, and enqueue
-    on the same Redis queue as native ingest.
+    A stock OTel HTTP exporter posts ``application/x-protobuf`` to
+    ``/v1/traces``; manual/legacy setups post ``application/json``. We
+    dispatch on Content-Type, translate to the same ``IngestBatch``, and
+    enqueue on the same Redis queue as native ingest.
     """
+    content_type = request.headers.get("content-type", "")
+    raw = await request.body()
+    if "protobuf" in content_type:
+        body = _decode_protobuf_body(raw)
+    else:
+        try:
+            body = orjson.loads(raw) if raw else {}
+        except orjson.JSONDecodeError as exc:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "invalid JSON body",
+            ) from exc
+        if not isinstance(body, dict):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "OTLP payload must be a JSON object",
+            )
+
     if "resourceSpans" not in body:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,

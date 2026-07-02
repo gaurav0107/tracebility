@@ -16,7 +16,20 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-RunKind = Literal["llm", "chain", "tool", "agent", "retriever", "embedding", "parser"]
+RunKind = Literal[
+    "llm",
+    "chain",
+    "tool",
+    "agent",
+    "retriever",
+    "embedding",
+    "parser",
+    "workflow",
+    "task",
+    "guardrail",
+    "evaluator",
+    "reranker",
+]
 RunStatus = Literal["ok", "error", "running", "cancelled"]
 
 
@@ -72,6 +85,8 @@ class RunIngest(BaseModel):
     cost_usd: float | None = None
     session_id: str | None = None
     user_id: str | None = None
+    end_user_id: str | None = None
+    end_user_metadata: dict[str, Any] | None = None
     tags: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
     error_kind: str | None = None

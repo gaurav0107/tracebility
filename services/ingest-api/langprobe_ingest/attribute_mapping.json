@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "_doc": "Versioned attribute-mapping data for the OTLP/OpenInference ingest shim. Unifies OpenInference + OTel GenAI + OpenLLMetry source conventions into one canonical schema. Adding a new source convention should require editing ONLY this file (append a source key to a fallback chain, or add a kind alias) — zero Python changes. See routers/otel.py for the loader.",
+  "openinference_kind": {
+    "LLM": "llm",
+    "CHAIN": "chain",
+    "TOOL": "tool",
+    "AGENT": "agent",
+    "RETRIEVER": "retriever",
+    "EMBEDDING": "embedding",
+    "RERANKER": "reranker",
+    "GUARDRAIL": "guardrail",
+    "EVALUATOR": "evaluator",
+    "WORKFLOW": "workflow",
+    "TASK": "task"
+  },
+  "gen_ai_operation_kind": {
+    "chat": "llm",
+    "text_completion": "llm",
+    "completion": "llm",
+    "embeddings": "embedding",
+    "tool_calling": "tool"
+  },
+  "model": [
+    "llm.model_name",
+    "gen_ai.request.model",
+    "gen_ai.response.model",
+    "model"
+  ],
+  "temperature": [
+    "llm.invocation_parameters.temperature",
+    "gen_ai.request.temperature",
+    "temperature"
+  ],
+  "tokens": {
+    "prompt": [
+      "llm.token_count.prompt",
+      "gen_ai.usage.input_tokens"
+    ],
+    "completion": [
+      "llm.token_count.completion",
+      "gen_ai.usage.output_tokens"
+    ],
+    "total": [
+      "llm.token_count.total"
+    ]
+  },
+  "io": {
+    "input": [
+      "input.value",
+      "llm.input_messages",
+      "gen_ai.prompt"
+    ],
+    "output": [
+      "output.value",
+      "llm.output_messages",
+      "gen_ai.completion"
+    ]
+  },
+  "end_user_id": [
+    "enduser.id",
+    "user.id",
+    "session.user.id"
+  ]
+}

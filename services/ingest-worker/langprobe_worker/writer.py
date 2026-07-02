@@ -23,13 +23,72 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import UTC, datetime
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 import clickhouse_connect
+import litellm
 import structlog
 from clickhouse_connect.driver import Client
 
 log = structlog.get_logger("langprobe.worker.writer")
+
+# ClickHouse cost_usd is Decimal(18, 8); quantize everything the worker
+# computes to that scale so no float drift reaches the wire.
+_COST_SCALE = Decimal("0.00000001")
+
+
+def _to_cost_decimal(value: Any) -> Decimal:
+    """Coerce an incoming cost value to a Decimal(18,8)-scaled Decimal."""
+    return Decimal(str(value)).quantize(_COST_SCALE, rounding=ROUND_HALF_UP)
+
+
+def _priced_cost_usd(span: dict[str, Any]) -> Decimal:
+    """Cost for one llm span.
+
+    If the span already reports a cost, keep it. Otherwise, when the model
+    is known and token counts are present, backfill from the same litellm
+    price table the API gateway uses (``cost_calculated_via='litellm-table'``)
+    via ``litellm.cost_per_token``. Unknown models raise inside litellm; we
+    mirror gateway.py and fall back to 0 rather than dropping the row.
+    """
+    reported = span.get("cost_usd")
+    if reported:
+        return _to_cost_decimal(reported)
+    if (span.get("kind") or "") != "llm":
+        return Decimal(0)
+    model = span.get("model")
+    prompt_tokens = span.get("prompt_tokens") or 0
+    completion_tokens = span.get("completion_tokens") or 0
+    if not model or (not prompt_tokens and not completion_tokens):
+        return Decimal(0)
+    try:
+        prompt_cost, completion_cost = litellm.cost_per_token(
+            model=model,
+            prompt_tokens=int(prompt_tokens),
+            completion_tokens=int(completion_tokens),
+        )
+    except Exception:  # noqa: BLE001 — litellm raises for unknown models
+        return Decimal(0)
+    return _to_cost_decimal(prompt_cost + completion_cost)
+
+
+def _run_cost_usd(run: dict[str, Any]) -> Decimal:
+    """Cost for a run.
+
+    Keep an explicitly-reported run cost. Otherwise roll it up from the
+    (possibly token-backfilled) costs of the run's own spans, mirroring the
+    existing token rollup pattern so a run whose SDK only priced at the span
+    level still shows a total.
+    """
+    reported = run.get("cost_usd")
+    if reported:
+        return _to_cost_decimal(reported)
+    total = Decimal(0)
+    for span in run.get("spans") or []:
+        total += _priced_cost_usd(span)
+    return total.quantize(_COST_SCALE, rounding=ROUND_HALF_UP)
+
 
 _RUN_COLUMNS: tuple[str, ...] = (
     "org_id",
@@ -55,6 +114,8 @@ _RUN_COLUMNS: tuple[str, ...] = (
     "cost_usd",
     "session_id",
     "user_id",
+    "end_user_id",
+    "end_user_metadata",
     "tags",
     "metadata",
     "error_kind",
@@ -114,6 +175,11 @@ _REPLAY_KIND_BY_SPAN_KIND: dict[str, str] = {
     "llm": "llm_call",
     "tool": "tool_io",
     "retriever": "retrieval",
+    # A reranker is a retrieval-boundary IO whose output (re-ordered docs)
+    # can drift with the index/model, so capture it like a retrieval.
+    # guardrail/evaluator/workflow/task stay out: no clear deterministic
+    # IO boundary yet (guardrail: defer, per the design).
+    "reranker": "retrieval",
 }
 
 
@@ -190,6 +256,7 @@ def _row_for_run(envelope: dict[str, Any], run: dict[str, Any]) -> tuple[Any, ..
     org_id, workspace_id, project_id = _tenant_tuple(envelope)
     start_time = _epoch(run.get("start_time"))
     end_time = _parse_dt(run.get("end_time"))
+    cost_usd = _run_cost_usd(run)
     return (
         org_id,
         workspace_id,
@@ -211,9 +278,11 @@ def _row_for_run(envelope: dict[str, Any], run: dict[str, Any]) -> tuple[Any, ..
         run.get("prompt_tokens") or 0,
         run.get("completion_tokens") or 0,
         run.get("total_tokens") or 0,
-        run.get("cost_usd") or 0,
+        cost_usd,
         run.get("session_id"),
         run.get("user_id"),
+        run.get("end_user_id"),
+        json.dumps(run.get("end_user_metadata") or {}),
         list(run.get("tags") or []),
         json.dumps(run.get("metadata") or {}),
         run.get("error_kind") or "",
@@ -256,7 +325,7 @@ def _row_for_span(
         span.get("prompt_tokens") or 0,
         span.get("completion_tokens") or 0,
         span.get("total_tokens") or 0,
-        span.get("cost_usd") or 0,
+        _priced_cost_usd(span),
         json.dumps(span.get("attributes") or {}),
         span.get("error_kind") or "",
         span.get("error_message") or "",

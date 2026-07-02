@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import socket
 from uuid import uuid4
 
@@ -102,6 +103,41 @@ def test_row_for_replay_capture_threads_tenant() -> None:
     assert row[0] == org
     assert row[1] == ws
     assert row[2] == proj
+
+
+def test_row_for_run_round_trips_end_user() -> None:
+    """end_user_id / end_user_metadata land in their _RUN_COLUMNS slots."""
+    proj = str(uuid4())
+    env = _envelope(
+        with_tenant=True, project_id=proj, org_id=str(uuid4()), workspace_id=str(uuid4())
+    )
+    run = env["payload"]["runs"][0]
+    run["end_user_id"] = "customer-42"
+    run["end_user_metadata"] = {"plan": "pro", "region": "us"}
+    row = _row_for_run(env, run)
+
+    eu_idx = _RUN_COLUMNS.index("end_user_id")
+    eum_idx = _RUN_COLUMNS.index("end_user_metadata")
+    # Must sit immediately after user_id (mirrors the ClickHouse `after user_id`).
+    assert eu_idx == _RUN_COLUMNS.index("user_id") + 1
+    assert eum_idx == eu_idx + 1
+    assert row[eu_idx] == "customer-42"
+    assert json.loads(row[eum_idx]) == {"plan": "pro", "region": "us"}
+
+
+def test_row_for_run_end_user_defaults() -> None:
+    """Absent end-user fields serialize to NULL id + empty-dict json string."""
+    proj = str(uuid4())
+    env = _envelope(
+        with_tenant=True, project_id=proj, org_id=str(uuid4()), workspace_id=str(uuid4())
+    )
+    run = env["payload"]["runs"][0]
+    row = _row_for_run(env, run)
+
+    eu_idx = _RUN_COLUMNS.index("end_user_id")
+    eum_idx = _RUN_COLUMNS.index("end_user_metadata")
+    assert row[eu_idx] is None
+    assert row[eum_idx] == "{}"
 
 
 def test_legacy_envelope_uses_sentinel(caplog) -> None:

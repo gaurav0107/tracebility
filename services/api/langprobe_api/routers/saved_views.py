@@ -42,7 +42,24 @@ log = structlog.get_logger("langprobe.api.saved_views")
 router = APIRouter(prefix="/v1/saved-views", tags=["saved-views"])
 
 _VALID_STATUS = {"ok", "error", "running", "cancelled"}
-_VALID_KIND = {"agent", "chain", "llm", "tool", "retriever", "embedding", "parser"}
+# Intentionally duplicates ingest-api's RunKind literals rather than importing
+# it (importing would add a cross-service dependency for one allowlist). The
+# trailing five were added in Batch 1 (workflow/task/guardrail/evaluator/
+# reranker); keep this in sync with ingest-api RunKind by hand.
+_VALID_KIND = {
+    "agent",
+    "chain",
+    "llm",
+    "tool",
+    "retriever",
+    "embedding",
+    "parser",
+    "workflow",
+    "task",
+    "guardrail",
+    "evaluator",
+    "reranker",
+}
 _VALID_SURFACE = {"runs", "monitoring"}
 _VALID_WINDOW_LABELS = {"1h", "6h", "24h", "7d"}
 
