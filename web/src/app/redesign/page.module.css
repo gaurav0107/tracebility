@@ -594,6 +594,11 @@
   color: var(--kind-tool);
 }
 
+.badgeRetr {
+  background: var(--kind-retr-bg);
+  color: var(--kind-retr);
+}
+
 .badgeChain {
   background: var(--kind-chain-bg);
   color: var(--kind-chain);

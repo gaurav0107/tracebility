@@ -945,7 +945,7 @@ function KindBadge({ kind }: { kind: string }) {
       ? "kind-llm"
       : k === "tool"
         ? "kind-tool"
-        : k === "retriever" || k === "retr"
+        : k === "retriever" || k === "retr" || k === "reranker"
           ? "kind-retr"
           : "kind-chain";
   return <span className={`kind-badge ${cls}`}>{kind}</span>;

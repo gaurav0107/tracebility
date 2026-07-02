@@ -442,8 +442,10 @@ function Topbar() {
 }
 
 function kindClass(kind: string) {
-  if (kind === "llm") return `${styles.badge} ${styles.badgeLlm}`;
-  if (kind === "tool") return `${styles.badge} ${styles.badgeTool}`;
-  if (kind === "chain") return `${styles.badge} ${styles.badgeChain}`;
-  return styles.badge;
+  const k = (kind || "").toLowerCase();
+  if (k === "llm") return `${styles.badge} ${styles.badgeLlm}`;
+  if (k === "tool") return `${styles.badge} ${styles.badgeTool}`;
+  if (k === "retriever" || k === "retr" || k === "reranker")
+    return `${styles.badge} ${styles.badgeRetr}`;
+  return `${styles.badge} ${styles.badgeChain}`;
 }

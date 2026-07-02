@@ -67,8 +67,13 @@ const KIND_OPTIONS = [
   { value: "llm", label: "llm" },
   { value: "tool", label: "tool" },
   { value: "retriever", label: "retriever" },
+  { value: "reranker", label: "reranker" },
   { value: "embedding", label: "embedding" },
   { value: "parser", label: "parser" },
+  { value: "workflow", label: "workflow" },
+  { value: "task", label: "task" },
+  { value: "guardrail", label: "guardrail" },
+  { value: "evaluator", label: "evaluator" },
 ];
 
 const WINDOW_OPTIONS: { value: string; label: string }[] = [
