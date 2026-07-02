@@ -82,6 +82,16 @@ def test_kind_maps_match_data() -> None:
     assert otel._resolve_kind({"gen_ai.operation.name": "embeddings"}, "x") == "embedding"
 
 
+def test_expanded_kinds_no_longer_collapse() -> None:
+    """GUARDRAIL/EVALUATOR must stop collapsing to chain and RERANKER to
+    retriever; WORKFLOW/TASK are new first-class kinds."""
+    assert otel._resolve_kind({"openinference.span.kind": "GUARDRAIL"}, "x") == "guardrail"
+    assert otel._resolve_kind({"openinference.span.kind": "EVALUATOR"}, "x") == "evaluator"
+    assert otel._resolve_kind({"openinference.span.kind": "RERANKER"}, "x") == "reranker"
+    assert otel._resolve_kind({"openinference.span.kind": "WORKFLOW"}, "x") == "workflow"
+    assert otel._resolve_kind({"openinference.span.kind": "TASK"}, "x") == "task"
+
+
 def test_resolution_is_data_driven(monkeypatch) -> None:
     """Appending a new source key to a loaded fallback chain must change
     resolution WITHOUT any code change — proving the resolvers read the data."""

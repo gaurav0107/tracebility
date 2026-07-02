@@ -8,9 +8,11 @@
     "AGENT": "agent",
     "RETRIEVER": "retriever",
     "EMBEDDING": "embedding",
-    "RERANKER": "retriever",
-    "GUARDRAIL": "chain",
-    "EVALUATOR": "chain"
+    "RERANKER": "reranker",
+    "GUARDRAIL": "guardrail",
+    "EVALUATOR": "evaluator",
+    "WORKFLOW": "workflow",
+    "TASK": "task"
   },
   "gen_ai_operation_kind": {
     "chat": "llm",

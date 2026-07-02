@@ -16,7 +16,20 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-RunKind = Literal["llm", "chain", "tool", "agent", "retriever", "embedding", "parser"]
+RunKind = Literal[
+    "llm",
+    "chain",
+    "tool",
+    "agent",
+    "retriever",
+    "embedding",
+    "parser",
+    "workflow",
+    "task",
+    "guardrail",
+    "evaluator",
+    "reranker",
+]
 RunStatus = Literal["ok", "error", "running", "cancelled"]
 
 
