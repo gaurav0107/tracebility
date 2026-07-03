@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, KeyRound, Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -90,39 +90,83 @@ export function CreateKeyButton({ projectId }: { projectId: string }) {
         <Backdrop onClose={reset}>
           <div
             style={{
-              minWidth: 400,
-              padding: 20,
+              width: 460,
+              maxWidth: "calc(100vw - 48px)",
+              padding: 28,
               display: "flex",
               flexDirection: "column",
-              gap: 16,
+              gap: 20,
             }}
           >
-            <div>
-              <h2>Create API key</h2>
-              <p
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: 5 }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 800,
+                    letterSpacing: "-0.02em",
+                    flex: 1,
+                  }}
+                >
+                  Create API key
+                </span>
+                <button
+                  type="button"
+                  onClick={reset}
+                  aria-label="Close"
+                  style={{
+                    border: 0,
+                    background: "transparent",
+                    color: "var(--text-4)",
+                    fontSize: 13,
+                    cursor: "pointer",
+                    lineHeight: 1,
+                    padding: 0,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <span
                 style={{
-                  margin: "4px 0 0",
+                  fontSize: 13,
                   color: "var(--text-3)",
-                  fontSize: 12,
+                  lineHeight: 1.5,
                 }}
               >
-                Plaintext key is shown once. Save it somewhere safe.
-              </p>
+                The plaintext is shown once — copy it into your ingest
+                environment immediately.
+              </span>
             </div>
             <label
-              style={{ display: "flex", flexDirection: "column", gap: 6 }}
+              style={{ display: "flex", flexDirection: "column", gap: 7 }}
             >
-              <span style={{ fontSize: 12, color: "var(--text-2)" }}>
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  color: "var(--text-4)",
+                }}
+              >
                 Name
               </span>
-              <input
-                type="text"
-                autoFocus
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="prod-ingest"
-                disabled={pending}
-              />
+              <span
+                className="input-shell"
+                data-error={error ? "true" : undefined}
+              >
+                <input
+                  type="text"
+                  autoFocus
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="prod-ingest"
+                  disabled={pending}
+                />
+              </span>
             </label>
             {error ? (
               <p
@@ -136,7 +180,12 @@ export function CreateKeyButton({ projectId }: { projectId: string }) {
               </p>
             ) : null}
             <div
-              style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}
+              style={{
+                display: "flex",
+                gap: 10,
+                justifyContent: "flex-end",
+                marginTop: 2,
+              }}
             >
               <button
                 type="button"
@@ -168,32 +217,53 @@ export function CreateKeyButton({ projectId }: { projectId: string }) {
         >
           <div
             style={{
-              minWidth: 480,
-              padding: 20,
+              width: 520,
+              maxWidth: "calc(100vw - 48px)",
+              padding: 28,
               display: "flex",
               flexDirection: "column",
-              gap: 16,
+              gap: 18,
             }}
           >
-            <div>
-              <h2>Save this key</h2>
-              <p
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: 5 }}
+            >
+              <span
                 style={{
-                  margin: "4px 0 0",
+                  fontSize: 18,
+                  fontWeight: 800,
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                Save this key
+              </span>
+              <span
+                style={{
+                  fontSize: 13,
                   color: "var(--text-3)",
-                  fontSize: 12,
+                  lineHeight: 1.5,
                 }}
               >
                 You won&apos;t see it again. Set it as{" "}
-                <span className="mono">LANGPROBE_API_KEY</span> in your
-                ingest environment.
-              </p>
+                <span
+                  className="mono"
+                  style={{
+                    fontSize: 12,
+                    background: "var(--surface-3)",
+                    borderRadius: 5,
+                    padding: "1px 6px",
+                  }}
+                >
+                  LANGPROBE_API_KEY
+                </span>{" "}
+                in your ingest environment.
+              </span>
             </div>
             <SecretReveal value={revealed.plaintext_key} />
             <div
               style={{
                 display: "flex",
-                gap: 8,
+                gap: 10,
                 justifyContent: "flex-end",
               }}
             >
@@ -222,29 +292,30 @@ function SecretReveal({ value }: { value: string }) {
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 8,
-        padding: "10px 12px",
-        background: "var(--surface-3)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--r-2)",
+        gap: 12,
+        padding: "8px 8px 8px 18px",
+        background: "var(--surface-2)",
+        border: "1px solid var(--border-soft)",
+        borderRadius: "var(--r-pill)",
       }}
     >
-      <KeyRound size={14} strokeWidth={1.5} color="var(--text-3)" />
       <code
         className="mono"
         style={{
           flex: 1,
+          minWidth: 0,
           fontSize: 12,
+          fontWeight: 500,
           color: "var(--text)",
           overflow: "hidden",
           textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
         }}
       >
         {value}
       </code>
       <button
         type="button"
-        className="btn btn-sm"
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(value);
@@ -254,8 +325,19 @@ function SecretReveal({ value }: { value: string }) {
             /* ignore */
           }
         }}
+        style={{
+          flexShrink: 0,
+          border: 0,
+          fontSize: 12,
+          fontWeight: 700,
+          color: "#fff",
+          background: "var(--text)",
+          borderRadius: "var(--r-pill)",
+          padding: "7px 16px",
+          cursor: "pointer",
+          fontFamily: "var(--f-sans)",
+        }}
       >
-        <Copy size={12} strokeWidth={1.5} />
         {copied ? "Copied" : "Copy"}
       </button>
     </div>
@@ -294,30 +376,48 @@ export function RevokeButton({
     <>
       <button
         type="button"
-        className="btn btn-sm"
         onClick={() => setConfirming(true)}
         title="Revoke this key"
+        style={{
+          border: 0,
+          background: "transparent",
+          fontSize: 12,
+          fontWeight: 600,
+          color: "var(--danger)",
+          cursor: "pointer",
+          padding: 0,
+          fontFamily: "var(--f-sans)",
+        }}
       >
-        <Trash2 size={12} strokeWidth={1.5} />
-        Revoke
+        revoke
       </button>
       {confirming ? (
         <Backdrop onClose={() => setConfirming(false)}>
           <div
             style={{
-              minWidth: 360,
-              padding: 20,
+              width: 420,
+              maxWidth: "calc(100vw - 48px)",
+              padding: 28,
               display: "flex",
               flexDirection: "column",
-              gap: 12,
+              gap: 18,
             }}
           >
-            <div>
-              <h2>Revoke key?</h2>
-              <p
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: 5 }}
+            >
+              <span
                 style={{
-                  margin: "4px 0 0",
-                  color: "var(--text-2)",
+                  fontSize: 18,
+                  fontWeight: 800,
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                Revoke key?
+              </span>
+              <span
+                style={{
+                  color: "var(--text-3)",
                   fontSize: 13,
                   lineHeight: 1.5,
                 }}
@@ -325,7 +425,7 @@ export function RevokeButton({
                 Any SDK using <span className="mono">{name}</span> will start
                 getting <span className="mono">401</span> on the next call.
                 This can&apos;t be undone.
-              </p>
+              </span>
             </div>
             {error ? (
               <p
@@ -339,7 +439,7 @@ export function RevokeButton({
               </p>
             ) : null}
             <div
-              style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}
+              style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}
             >
               <button
                 type="button"
@@ -380,20 +480,18 @@ function Backdrop({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(10, 10, 10, 0.4)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        background: "rgba(12, 12, 16, 0.38)",
+        display: "grid",
+        placeItems: "center",
         zIndex: 100,
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="card"
         style={{
           background: "var(--surface)",
-          borderRadius: "var(--r-3)",
-          boxShadow: "var(--shadow-3)",
+          borderRadius: "var(--r-modal)",
+          boxShadow: "var(--shadow-modal)",
         }}
       >
         {children}

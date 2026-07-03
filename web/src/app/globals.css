@@ -1,107 +1,112 @@
-/* Design tokens — see DESIGN.md (v4, "Design System.dc.html").
+/* Design tokens — "Langprobe App Design Overhaul" (see .context/design-target/SPEC.md).
  * Plus Jakarta Sans (humans read) + Geist Mono (machine values). Light-mode default.
- * Accent is HeroUI primary blue #0485F7 for actions/series; links are a distinct
- * deeper blue #0A66C2 so a clickable identifier never reads as the primary action. */
+ * Warm off-white canvas, near-white app surface, everything interactive is a full pill,
+ * cards are soft 20px white panels. Accent HeroUI blue #0485F7; links deeper blue #0A66C2.
+ * This supersedes the old v4 radius cap + KPI-sans rules — the target design wins. */
 
 :root {
   /* Surfaces */
-  --bg:            #FCFCFC;
-  --surface:       #FFFFFF;
-  --surface-2:     #F7F7F5;
-  --surface-3:     #F0F0EE;
-  --hover:         #F5F5F3;
+  --bg:              #F4F4F1;   /* app canvas / body / exposed backdrop */
+  --surface-app:     #FDFDFC;   /* main content column */
+  --surface:         #FFFFFF;   /* cards, panels, table bodies, modals, search */
+  --surface-sidebar: #FBFBFA;   /* sidebar column + composer message editors */
+  --surface-2:       #F7F7F5;   /* code blocks, output box, inset value boxes */
+  --surface-3:       #F0F0EE;   /* chip tracks, avatars, kbd, scope tokens */
+  --hover:           #F5F5F3;   /* button / tab / pill hover */
+  --row-hover:       #FAFAF9;   /* table / list row hover */
 
   /* Borders */
-  --border:        #ECECEA;
-  --border-strong: #DDDDDB;
-  --border-focus:  #0485F7;
+  --border:          #ECECEA;   /* cards, search, tabs, inputs, pills */
+  --border-frame:    #E4E4E1;   /* outermost app frame (if framed) */
+  --border-soft:     #EFEFED;   /* sidebar / topbar dividers, inset containers */
+  --border-strong:   #D8D8D4;   /* input hover, dashed adds, unchecked box */
+  --border-muted:    #D8D8D4;
+  --divider:         #F4F4F2;   /* in-card header underline */
+  --divider-row:     #F7F7F5;   /* table row divider */
+  --border-focus:    #0485F7;
 
-  /* Text — text-3 is the lightest tone still rated for body/helper/label copy.
-   * It clears WCAG AA (>=4.5:1) on --bg, --surface-2, and --surface-3.
-   * text-4 is intentionally sub-AA and is for DISABLED text only (which
-   * WCAG exempts); placeholders use text-3, never text-4. */
-  --text:          #0A0A0A;
-  --text-2:        #4B4B49;
-  --text-3:        #6C6C69;
-  --text-4:        #B4B4AE;
+  /* Text */
+  --text:            #0A0A0A;
+  --text-2:          #55554F;   /* nav items, table values, body secondary */
+  --text-3:          #6C6C69;   /* helper copy, inactive chip */
+  --text-4:          #B4B4AE;   /* uppercase micro-labels, meta, placeholders, carets */
+  --text-faint:      #D8D8D4;   /* breadcrumb separators, close × */
 
-  /* Brand / accent (HeroUI primary blue) — primary action + primary data series */
-  --accent:        #0485F7;
-  --accent-fg:     #FFFFFF;
-  --accent-soft:   #E0F0FE;
-  --accent-hover:  #3592F9;
+  /* Brand / accent (HeroUI primary blue) */
+  --accent:          #0485F7;
+  --accent-fg:       #FFFFFF;
+  --accent-hover:    #3592F9;
+  --accent-press:    #0470D6;
+  --accent-soft:     #E0F0FE;
+  --accent-fill:     rgba(4,133,247,0.08);   /* selected pill/tab bg */
+  --accent-fill-2:   rgba(4,133,247,0.045);  /* selected table row bg */
+  --accent-fill-nav: rgba(4,133,247,0.09);   /* active nav item bg */
+  --accent-border:   rgba(4,133,247,0.25);   /* selected pill/tab border */
+  --accent-ring:     rgba(4,133,247,0.14);   /* input focus ring */
 
-  /* Link — the accent hue darkened to clear WCAG AA (4.5:1) as TEXT. The accent
-   * stays #0485F7 for button fills (white-on-fill is a 3:1 UI pairing); link/info
-   * text needs the stricter 4.5:1, hence the split. It also lets a navigable
-   * id/trace read distinctly from the primary action on a view. */
-  --link:          #0A66C2;
-  --link-soft:     #E0F0FE;
+  /* Link — deeper blue, clears AA as text */
+  --link:            #0A66C2;
+  --link-soft:       #E0F0FE;
 
-  /* Semantic — foregrounds are AA-rated as badge/label text on their *-soft
-   * backgrounds (and as dots/deltas on --bg). Soft bgs are unchanged. */
-  --info:          #0A66C2;
-  --info-soft:     #E0F0FE;
-  --success:       #157A45;
-  --success-soft:  #E7F4ED;
-  --warn:          #9C5400;
-  --warn-soft:     #FBF1E0;
-  --danger:        #C0382B;
-  --danger-soft:   #FBEAE7;
+  /* Semantic */
+  --info:            #0A66C2;
+  --info-soft:       #E0F0FE;
+  --success:         #157A45;
+  --success-soft:    #E7F4ED;
+  --warn:            #B97306;   /* target uses the amber hue for warn/running */
+  --warn-soft:       #FBF3DF;
+  --danger:          #C0382B;
+  --danger-soft:     #FBEAE7;
 
-  /* Span-kind palette — categorical, lives only in trace-view kind badges.
-   * NOT available for general UI; do not use for buttons, rows, etc. */
-  --kind-llm:      #B97306;
-  --kind-llm-bg:   #FBF3DF;
-  --kind-tool:     #0E7FB8;
-  --kind-tool-bg:  #E2F1FA;
-  --kind-retr:     #1F8A56;
-  --kind-retr-bg:  #E5F4EC;
-  --kind-chain:    #7A4FD9;
-  --kind-chain-bg: #EFEAFB;
+  /* Span-kind palette — categorical, mono lowercase pills in trace views. */
+  --kind-llm:      #B97306;  --kind-llm-bg:   #FBF3DF;
+  --kind-tool:     #0E7FB8;  --kind-tool-bg:  #E2F1FA;
+  --kind-retr:     #1F8A56;  --kind-retr-bg:  #E5F4EC;
+  --kind-chain:    #7A4FD9;  --kind-chain-bg: #EFEAFB;
+  --kind-agent:    #7A4FD9;  --kind-agent-bg: #EFEAFB;
 
-  /* Geometry */
-  --r-1: 4px;
-  --r-2: 6px;
-  --r-3: 8px;
-  --r-4: 12px;
+  /* Geometry — pills for interactive chrome, big radii for surfaces */
+  --r-1: 6px;      /* kbd, tiny chips */
+  --r-2: 8px;      /* logo square, checkboxes, inline-edit shell */
+  --r-3: 12px;     /* small value insets */
+  --r-4: 14px;     /* code blocks, message editors, inspector kv box */
+  --r-card:  20px; /* cards / panels / table containers */
+  --r-modal: 24px; /* modals / dialogs */
+  --r-pill:  999px;/* buttons, badges, nav, chips, tabs, search, inputs, selects */
 
-  /* Shadow — the elevation scale: card / raised / modal */
-  --shadow-1: 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-2: 0 4px 12px -2px rgba(0,0,0,0.08);
-  --shadow-3: 0 12px 40px -8px rgba(0,0,0,0.14);
+  /* Shadows */
+  --shadow-1: 0 2px 12px rgba(10,10,10,0.03);      /* = card */
+  --shadow-2: 0 2px 8px rgba(10,10,10,0.04);       /* = raised */
+  --shadow-3: 0 32px 80px -16px rgba(10,10,20,0.35);/* = modal */
+  --shadow-card:      0 2px 12px rgba(10,10,10,0.03);
+  --shadow-raised:    0 2px 8px rgba(10,10,10,0.04);
+  --shadow-logo:      0 4px 12px rgba(4,133,247,0.35);
+  --shadow-accent:    0 4px 14px rgba(4,133,247,0.38);
+  --shadow-accent-lg: 0 10px 28px -6px rgba(4,133,247,0.5);
+  --shadow-modal:     0 32px 80px -16px rgba(10,10,20,0.35);
+  --shadow-chip:      0 2px 6px rgba(10,10,10,0.08);
+  --shadow-bulkbar:   0 20px 48px -10px rgba(10,10,20,0.5);
+  --scrim:            rgba(12,12,16,0.38);
 
-  /* Type — Plus Jakarta Sans (--font-jakarta) + Geist Mono (--font-geist-mono),
-   * both set on <html> by next/font in layout.tsx. */
+  /* Type */
   --f-sans: var(--font-jakarta), -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --f-mono: var(--font-geist-mono), ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
 
-  /* Type sizes */
-  --fs-12: 12px;
-  --fs-13: 13px;
-  --fs-14: 14px;
-  --fs-16: 16px;
-  --fs-18: 18px;
-  --fs-20: 20px;
-  --fs-24: 24px;
-  --fs-28: 28px;
-  --fs-32: 32px;
-  --fs-40: 40px;
+  --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-16: 16px; --fs-18: 18px;
+  --fs-20: 20px; --fs-24: 24px; --fs-27: 27px; --fs-28: 28px; --fs-32: 32px; --fs-40: 40px;
 
-  /* Motion tokens — subtle by default; cinematic moves are scoped to
-   * specific surfaces (auth, hero) via opt-in classes. Reduced-motion
-   * media query at the bottom of the file zeroes everything out. */
+  /* Motion */
   --motion-fast:    120ms;
   --motion-base:    180ms;
   --motion-slow:    240ms;
-  --motion-stage:   400ms;   /* page-level entrances (login left rail) */
+  --motion-stage:   400ms;
   --ease-out:       cubic-bezier(0.22, 0.61, 0.36, 1);
   --ease-out-soft:  cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in:        cubic-bezier(0.4, 0, 1, 1);
 
-  /* Layout chrome (mock) */
-  --topbar-h: 48px;
-  --sidebar-w: 232px;
+  /* Layout chrome */
+  --topbar-h: 58px;
+  --sidebar-w: 236px;
   --tracepane-l: 360px;
   --tracepane-r: 440px;
   --studiopane-r: 380px;
@@ -122,38 +127,37 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
-
 body { min-height: 100vh; }
+
+::selection { background: #D5EAFD; color: var(--text); }
 
 .mono, code, kbd, samp {
   font-family: var(--f-mono);
   font-feature-settings: "tnum" 1, "zero" 1, "ss01" 1;
 }
-
 .num, .tnum {
   font-variant-numeric: tabular-nums slashed-zero;
   font-feature-settings: "tnum" 1, "zero" 1;
 }
 
+/* Headings — heavy, tight sans. Page titles are the 27/800 scale. */
 h1, h2, h3, h4 {
   margin: 0;
-  font-weight: 600;
-  letter-spacing: -0.018em;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   color: var(--text);
 }
-h1 { font-size: var(--fs-24); line-height: 1.2; letter-spacing: -0.025em; font-weight: 700; }
-h2 { font-size: var(--fs-18); line-height: 1.24; letter-spacing: -0.018em; font-weight: 600; }
-h3 { font-size: var(--fs-14); line-height: 1.3; }
-h4 { font-size: var(--fs-13); line-height: 1.3; }
+h1 { font-size: var(--fs-27); line-height: 1.1;  letter-spacing: -0.03em; font-weight: 800; }
+h2 { font-size: var(--fs-20); line-height: 1.2;  letter-spacing: -0.02em; font-weight: 800; }
+h3 { font-size: 14.5px;       line-height: 1.3;  font-weight: 800; }
+h4 { font-size: var(--fs-13); line-height: 1.3;  font-weight: 700; }
 
-/* Display headline — opt-in, used on hero/auth/empty-state surfaces.
- * Bold + tight tracking for typographic confidence in Plus Jakarta Sans. */
 .display {
   font-family: var(--f-sans);
   font-size: var(--fs-40);
   line-height: 1.05;
   letter-spacing: -0.035em;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--text);
 }
 .display-sm {
@@ -161,17 +165,17 @@ h4 { font-size: var(--fs-13); line-height: 1.3; }
   font-size: var(--fs-32);
   line-height: 1.1;
   letter-spacing: -0.03em;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--text);
 }
-/* Caption / kicker — sans, not mono: it's chrome, not a machine value. */
+/* Caption / kicker — sans micro-label */
 .eyebrow {
   font-family: var(--f-sans);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-3);
+  color: var(--text-4);
 }
 
 a {
@@ -180,33 +184,25 @@ a {
   border-radius: var(--r-1);
 }
 a:hover { text-decoration: underline; text-underline-offset: 2px; }
-a:focus-visible {
-  outline: 1px solid var(--border-focus);
-  outline-offset: 2px;
-}
+a:focus-visible { outline: 1px solid var(--border-focus); outline-offset: 2px; }
 
-::selection {
-  background: var(--link-soft);
-  color: var(--text);
-}
-
-/* Buttons */
+/* ---------- Buttons — pills ---------- */
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  height: 32px;
-  padding: 0 12px;
+  height: 36px;
+  padding: 0 20px;
   border: 1px solid var(--border);
-  border-radius: var(--r-2);
+  border-radius: var(--r-pill);
   background: var(--surface);
-  color: var(--text);
+  color: var(--text-2);
   font-family: var(--f-sans);
-  font-size: var(--fs-13);
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 700;
   letter-spacing: -0.005em;
   cursor: pointer;
-  /* Slightly longer easing so hover feels intentional rather than instant. */
   transition:
     background var(--motion-fast) var(--ease-out),
     border-color var(--motion-fast) var(--ease-out),
@@ -214,13 +210,9 @@ a:focus-visible {
     box-shadow var(--motion-fast) var(--ease-out),
     transform var(--motion-fast) var(--ease-out);
   text-decoration: none;
-  /* Hint to the GPU that we'll transform on press. */
   will-change: transform;
 }
-.btn:hover {
-  background: var(--hover);
-  border-color: var(--border-strong);
-}
+.btn:hover { background: var(--hover); border-color: var(--border-strong); color: var(--text); }
 .btn:active { transform: translateY(1px); }
 .btn:focus-visible { outline: 1px solid var(--border-focus); outline-offset: 1px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
@@ -229,63 +221,45 @@ a:focus-visible {
   background: var(--accent);
   color: var(--accent-fg);
   border-color: var(--accent);
-  /* A whisper of inner highlight that catches the eye on the primary CTA. */
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), var(--shadow-1);
+  box-shadow: var(--shadow-accent);
 }
-.btn-primary:hover {
-  background: var(--accent-hover);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), var(--shadow-2);
-}
-.btn-primary:active {
-  /* Pressed: nudge slightly darker than --accent. Same hue family,
-   * just compressed lightness so the button feels physically pushed. */
-  background: #0470D6;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--accent-fg); box-shadow: var(--shadow-accent); }
+.btn-primary:active { background: var(--accent-press); box-shadow: none; }
 
-.btn-ghost {
-  background: transparent;
-  border-color: transparent;
-}
+.btn-ghost { background: transparent; border-color: transparent; }
 .btn-ghost:hover { background: var(--hover); border-color: transparent; }
 
-.btn-danger {
-  background: var(--danger);
-  color: #fff;
-  border-color: var(--danger);
-}
+.btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn-danger:hover { background: #A62F24; border-color: #A62F24; color: #fff; }
 
-.btn-sm { height: 28px; padding: 0 10px; font-size: var(--fs-12); }
-.btn-lg { height: 36px; padding: 0 14px; font-size: var(--fs-14); }
+.btn-sm { height: 30px; padding: 0 14px; font-size: var(--fs-12); }
+.btn-lg { height: 44px; padding: 0 28px; font-size: var(--fs-14); }
+.btn-lg.btn-primary { box-shadow: var(--shadow-accent-lg); }
 
 /* Keyboard hint */
 .kbd {
   display: inline-flex;
   align-items: center;
   height: 20px;
-  padding: 0 6px;
-  border: 1px solid var(--border);
-  border-bottom-width: 2px;
+  padding: 2px 6px;
   border-radius: var(--r-1);
-  background: var(--surface);
+  background: var(--surface-3);
   font-family: var(--f-mono);
-  font-size: 11px;
-  color: var(--text-2);
+  font-size: 10.5px;
+  color: var(--text-3);
   line-height: 1;
 }
 
-/* Status badge — soft-tint bg + saturated text, always AA. Sans, not mono:
- * a status word is chrome the eye reads, never a machine value. Pair with a
- * leading .dot for the run-status pattern. */
+/* ---------- Status badge — pill, soft bg + saturated text ---------- */
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 2px 7px;
-  border-radius: 5px;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
   font-family: var(--f-sans);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.4;
   background: var(--surface-3);
   color: var(--text-2);
@@ -297,156 +271,127 @@ a:focus-visible {
 .badge-info    { background: var(--info-soft);    color: var(--info); }
 .badge-neutral { background: var(--surface-3);    color: var(--text-2); }
 
-/* Span-kind badges — uppercase taxonomy for span types. Sans + heavy weight
- * so the kind reads as a label, not a data token. */
+/* Kind badge — mono lowercase pill, no dot (span taxonomy) */
 .kind-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
-  border-radius: 5px;
-  font-family: var(--f-sans);
-  font-size: 11px;
-  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  font-weight: 600;
   line-height: 1.4;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  letter-spacing: 0;
 }
 .kind-llm   { background: var(--kind-llm-bg);   color: var(--kind-llm); }
 .kind-tool  { background: var(--kind-tool-bg);  color: var(--kind-tool); }
 .kind-retr  { background: var(--kind-retr-bg);  color: var(--kind-retr); }
 .kind-chain { background: var(--kind-chain-bg); color: var(--kind-chain); }
+.kind-agent { background: var(--kind-agent-bg); color: var(--kind-agent); }
 
 /* Status dot */
 .dot {
-  width: 6px; height: 6px;
+  width: 5px; height: 5px;
   border-radius: 9999px;
   background: var(--text-3);
   display: inline-block;
+  flex-shrink: 0;
 }
 .dot-success { background: var(--success); }
 .dot-warn    { background: var(--warn); }
 .dot-danger  { background: var(--danger); }
 .dot-info    { background: var(--info); }
 
-/* ---------- Card system ----------
- *
- * The base .card is the canonical container. Three opt-in modifiers:
- *   .card-elevated  — heavier shadow, used for modals + floating popovers
- *   .card-section   — preset header + body for "labelled section of UI"
- *   .card-empty     — empty/zero-state with an icon slot, body, and CTA
- *
- * Use the modifier as a *replacement* shape, not as decoration. If a
- * card needs no header, no empty-state, and no float — use .card.
- */
+/* ---------- Card system ---------- */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--r-3);
-  /* Stack the standard 1px shadow with a near-invisible inner highlight
-   * so the card feels like a *physical* surface against the bg without
-   * leaning on a heavy drop-shadow. */
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.6),
-    var(--shadow-1);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
   transition:
     border-color var(--motion-fast) var(--ease-out),
     box-shadow var(--motion-base) var(--ease-out);
 }
-.card-pad    { padding: 16px; }
-.card-pad-lg { padding: 20px; }
+.card-pad    { padding: 20px 24px; }
+.card-pad-lg { padding: 22px 24px; }
 .card-head {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
+  padding: 18px 24px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
-.card-title { font-size: var(--fs-14); font-weight: 600; color: var(--text); margin: 0; }
-.card-sub   { font-size: var(--fs-12); color: var(--text-3); }
+.card-title { font-size: 14.5px; font-weight: 800; color: var(--text); margin: 0; }
+.card-sub   { font-family: var(--f-mono); font-size: 11.5px; color: var(--text-4); }
 
-/* Elevated — modals, dropdowns, command palette. Higher shadow,
- * stronger inner highlight, slightly larger radius for "floating". */
+/* Elevated — modals, dropdowns, command palette */
 .card-elevated {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--r-4);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.7),
-    var(--shadow-3);
+  border-radius: var(--r-modal);
+  box-shadow: var(--shadow-modal);
 }
 
-/* Section card — the "labelled chunk of dashboard" pattern.
- * Title + description in the header; padded body for fields. */
+/* Section card */
 .card-section {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--r-3);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.6),
-    var(--shadow-1);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
   display: grid;
 }
 .card-section-head {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--divider);
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
 }
-.card-section-head-text {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
+.card-section-head-text { display: grid; gap: 4px; min-width: 0; }
 .card-section-title {
-  font-size: var(--fs-16);
-  font-weight: 600;
+  font-size: 14.5px;
+  font-weight: 800;
   letter-spacing: -0.012em;
   color: var(--text);
   margin: 0;
 }
 .card-section-desc {
   font-size: var(--fs-13);
-  color: var(--text-2);
+  color: var(--text-3);
   line-height: 1.5;
   margin: 0;
   max-width: 64ch;
 }
-.card-section-body {
-  padding: 20px;
-}
-.card-section-body-tight {
-  padding: 16px 20px;
-}
+.card-section-body { padding: 22px 24px; }
+.card-section-body-tight { padding: 16px 24px; }
 .card-section-foot {
-  padding: 14px 20px;
-  border-top: 1px solid var(--border);
+  padding: 16px 24px;
+  border-top: 1px solid var(--divider);
   background: var(--surface-2);
-  border-radius: 0 0 var(--r-3) var(--r-3);
+  border-radius: 0 0 var(--r-card) var(--r-card);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-/* Empty-state card — when there's no data yet, this teaches the
- * interface instead of leaving the user with blank space. */
+/* Empty-state card */
 .card-empty {
   background: var(--surface);
   border: 1px dashed var(--border-strong);
-  border-radius: var(--r-3);
-  padding: 32px 24px;
+  border-radius: var(--r-card);
+  padding: 36px 24px;
   display: grid;
   gap: 12px;
   justify-items: center;
   text-align: center;
 }
 .card-empty-icon {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 9999px;
   background: var(--surface-3);
   color: var(--text-3);
@@ -454,15 +399,10 @@ a:focus-visible {
   align-items: center;
   justify-content: center;
 }
-.card-empty-title {
-  font-size: var(--fs-14);
-  font-weight: 600;
-  color: var(--text);
-  margin: 0;
-}
+.card-empty-title { font-size: var(--fs-14); font-weight: 700; color: var(--text); margin: 0; }
 .card-empty-desc {
   font-size: var(--fs-13);
-  color: var(--text-2);
+  color: var(--text-3);
   margin: 0;
   max-width: 48ch;
   line-height: 1.55;
@@ -472,33 +412,34 @@ a:focus-visible {
 .kpi {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--r-3);
-  padding: 16px;
+  border-radius: var(--r-card);
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
 }
 .kpi-label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-3);
-}
-/* Big display figure: sans with tabular-nums (not mono). Mono is reserved for
- * inline machine values — ids, model names, per-row costs and durations. */
-.kpi-value {
-  font-family: var(--f-sans);
-  font-size: var(--fs-28);
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-4);
+}
+/* Metric-strip value: mono per target overhaul (not sans). */
+.kpi-value {
+  font-family: var(--f-mono);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--text);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums slashed-zero;
+  white-space: nowrap;
 }
 .kpi-delta {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  font-family: var(--f-mono);
   font-size: var(--fs-12);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
@@ -510,30 +451,30 @@ a:focus-visible {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--fs-13);
+  font-size: 13.5px;
 }
 .table th, .table td {
   text-align: left;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--divider-row);
 }
 .table thead th {
-  background: var(--surface-2);
+  background: var(--surface);
   position: sticky;
   top: 0;
-  font-size: 11px;
-  font-weight: 600;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--divider);
+  font-size: 10.5px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-3);
+  letter-spacing: 0.07em;
+  color: var(--text-4);
 }
-.table tbody tr {
-  transition: background var(--motion-fast) var(--ease-out);
-}
-.table tbody tr:hover { background: var(--hover); }
-.table .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.table tbody tr { transition: background var(--motion-fast) var(--ease-out); }
+.table tbody tr:hover { background: var(--row-hover); }
+.table .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; color: var(--text-2); }
 
-/* Crumbs */
+/* Crumbs (breadcrumb) */
 .crumbs {
   display: flex;
   align-items: center;
@@ -541,23 +482,23 @@ a:focus-visible {
   font-size: var(--fs-13);
   color: var(--text-2);
 }
-.crumbs .sep { color: var(--text-4); }
-.crumbs .last { color: var(--text); font-weight: 500; }
-.crumbs a { color: var(--text-2); }
+.crumbs .sep { color: var(--text-faint); }
+.crumbs .last { color: var(--text); font-weight: 700; }
+.crumbs a { color: var(--text-4); font-family: var(--f-mono); font-size: 12px; }
 .crumbs a:hover { color: var(--text); text-decoration: none; }
 
-/* Search box */
+/* Search box — pill */
 .search-box {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 32px;
-  padding: 0 10px;
-  background: var(--surface-2);
+  gap: 10px;
+  height: 38px;
+  padding: 0 16px;
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--r-2);
-  color: var(--text-3);
-  min-width: 320px;
+  border-radius: var(--r-pill);
+  color: var(--text-4);
+  min-width: 300px;
 }
 .search-box input {
   flex: 1;
@@ -565,33 +506,31 @@ a:focus-visible {
   outline: 0;
   background: transparent;
   font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
   color: var(--text);
 }
-.search-box input::placeholder { color: var(--text-3); }
-.search-box:focus-within {
-  border-color: var(--border-focus);
-  background: var(--surface);
-}
+.search-box input::placeholder { color: var(--text-4); }
+.search-box:focus-within { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--accent-ring); }
 
-/* Sidebar nav */
+/* Sidebar nav — text pills */
 .nav-section-label {
-  padding: 12px 12px 6px;
-  font-size: 11px;
-  font-weight: 600;
+  padding: 16px 14px 7px;
+  font-size: 10.5px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-3);
+  letter-spacing: 0.09em;
+  color: var(--text-4);
 }
 .nav-item {
   position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 30px;
-  padding: 0 12px;
-  margin: 0 6px;
-  border-radius: var(--r-2);
-  font-size: var(--fs-13);
+  padding: 7px 14px;
+  border-radius: var(--r-pill);
+  font-size: 13.5px;
+  font-weight: 600;
   color: var(--text-2);
   text-decoration: none;
   cursor: pointer;
@@ -599,27 +538,11 @@ a:focus-visible {
     background var(--motion-fast) var(--ease-out),
     color var(--motion-fast) var(--ease-out);
 }
-.nav-item:hover { background: var(--hover); color: var(--text); text-decoration: none; }
-.nav-item:hover .nav-icon { opacity: 1; }
+.nav-item:hover { background: var(--surface-3); color: var(--text); text-decoration: none; }
 .nav-item.active {
-  background: var(--surface-3);
-  color: var(--text);
-  font-weight: 600;
-}
-/* Left-edge accent bar on the active item — high-affordance signal that
- * hints the user is "anchored" to that section. Animates in via a
- * scaleY transform so it doesn't jolt when the active item changes. */
-.nav-item.active::before {
-  content: "";
-  position: absolute;
-  left: -6px;
-  top: 6px;
-  bottom: 6px;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--accent);
-  transform-origin: center;
-  animation: nav-indicator-in var(--motion-base) var(--ease-out-soft);
+  background: var(--accent-fill-nav);
+  color: var(--link);
+  font-weight: 700;
 }
 .nav-item .nav-icon {
   width: 16px;
@@ -627,24 +550,11 @@ a:focus-visible {
   opacity: 0.7;
   transition: opacity var(--motion-fast) var(--ease-out);
 }
+.nav-item:hover .nav-icon,
 .nav-item.active .nav-icon { opacity: 1; }
 .nav-item .badge { margin-left: auto; }
 
-@keyframes nav-indicator-in {
-  0%   { transform: scaleY(0); opacity: 0; }
-  100% { transform: scaleY(1); opacity: 1; }
-}
-
-/* ---------- Inputs ----------
- * Single source of truth for every text input, password, email,
- * search, textarea, and select across the app. Hover gets a soft
- * border bump; focus gets a 1px focus ring instead of an outline
- * (cleaner, doesn't shift layout); aria-invalid pulls the danger
- * palette so error states cost no extra component-level CSS.
- *
- * The `peer` pattern (sibling-selector under .field) lets us style
- * the surrounding label/hint without JS state.
- */
+/* ---------- Inputs — single-line pills, textareas rounded ---------- */
 input[type="text"],
 input[type="email"],
 input[type="password"],
@@ -658,11 +568,10 @@ select {
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--r-2);
-  padding: 8px 11px;
+  border-radius: var(--r-pill);
+  padding: 9px 16px;
   outline: 0;
   width: 100%;
-  /* iOS adds extra inner padding by default; nuke it. */
   -webkit-appearance: none;
   appearance: none;
   transition:
@@ -670,19 +579,13 @@ select {
     box-shadow var(--motion-fast) var(--ease-out),
     background var(--motion-fast) var(--ease-out);
 }
-input::placeholder, textarea::placeholder {
-  color: var(--text-3);
-}
+input::placeholder, textarea::placeholder { color: var(--text-4); }
 input:hover:not(:focus):not(:disabled),
 textarea:hover:not(:focus):not(:disabled),
-select:hover:not(:focus):not(:disabled) {
-  border-color: var(--border-strong);
-}
+select:hover:not(:focus):not(:disabled) { border-color: var(--border-strong); }
 input:focus, textarea:focus, select:focus {
   border-color: var(--border-focus);
-  /* 1px focus ring colour-matched to the accent. Sits inside the
-   * border so the input doesn't jump on focus. */
-  box-shadow: 0 0 0 1px var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 input:disabled, textarea:disabled, select:disabled {
   background: var(--surface-2);
@@ -691,60 +594,45 @@ input:disabled, textarea:disabled, select:disabled {
 }
 input[aria-invalid="true"],
 textarea[aria-invalid="true"],
-select[aria-invalid="true"] {
-  border-color: var(--danger);
-}
+select[aria-invalid="true"] { border-color: var(--danger); }
 input[aria-invalid="true"]:focus,
 textarea[aria-invalid="true"]:focus,
 select[aria-invalid="true"]:focus {
   border-color: var(--danger);
-  box-shadow: 0 0 0 1px var(--danger);
+  box-shadow: 0 0 0 3px rgba(192,56,43,0.14);
+}
+/* Textareas are rounded boxes, not pills. */
+textarea {
+  border-radius: var(--r-4);
+  padding: 12px 14px;
+  line-height: 1.6;
 }
 
-/* ---------- Field — label + control + hint/error ----------
- * Wraps a single labelled control with a uniform layout.
- *
- *   <label class="field">
- *     <span class="field-label">Email</span>
- *     <input type="email" />
- *     <span class="field-hint">we'll send a verification link</span>
- *   </label>
- *
- * For errors, swap field-hint with role="alert" + .field-error so
- * screen readers announce the failure (matches WCAG aria-live
- * conventions).
- */
-.field {
-  display: grid;
-  gap: 6px;
-}
+/* ---------- Field — label + control + hint/error ---------- */
+.field { display: grid; gap: 7px; }
 .field-label {
   display: flex;
   align-items: center;
   gap: 6px;
   width: 100%;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-2);
-  letter-spacing: -0.005em;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-4);
 }
-.field-label .required {
-  color: var(--danger);
-  font-weight: 400;
-}
-/* Helper + error copy is prose the user reads → sans. Only machine values a
- * user copies/compares (ids, hosts, keys) stay mono, inside the input shell. */
+.field-label .required { color: var(--danger); font-weight: 400; }
 .field-hint {
   font-family: var(--f-sans);
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--text-3);
-  line-height: 1.45;
+  line-height: 1.5;
 }
 .field-error {
   font-family: var(--f-sans);
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--danger);
-  line-height: 1.45;
+  line-height: 1.5;
   display: flex;
   align-items: flex-start;
   gap: 6px;
@@ -770,93 +658,53 @@ select[aria-invalid="true"]:focus {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
 
-/* ---------- Form section — group of related fields ----------
- * Use inside a card to bundle "what this set of fields does":
- *
- *   <section class="form-section">
- *     <header class="form-section-head">
- *       <h3 class="form-section-title">Sampling</h3>
- *       <p class="form-section-desc">How much of your traffic to ingest.</p>
- *     </header>
- *     <div class="field">…</div>
- *     <div class="field">…</div>
- *   </section>
- */
-.form-section {
-  display: grid;
-  gap: 14px;
-}
+/* ---------- Form section ---------- */
+.form-section { display: grid; gap: 14px; }
 .form-section + .form-section {
   margin-top: 6px;
   padding-top: 18px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--divider);
 }
-.form-section-head {
-  display: grid;
-  gap: 4px;
-}
+.form-section-head { display: grid; gap: 4px; }
 .form-section-title {
-  font-size: var(--fs-14);
-  font-weight: 600;
+  font-size: 14.5px;
+  font-weight: 800;
   color: var(--text);
   margin: 0;
   letter-spacing: -0.01em;
 }
 .form-section-desc {
   font-size: var(--fs-13);
-  color: var(--text-2);
+  color: var(--text-3);
   margin: 0;
   line-height: 1.5;
   max-width: 56ch;
 }
 
-/* ---------- Form footer — submit row ----------
- * Right-aligned action row, with optional left-side note (e.g.
- * "saved 4s ago"). Uses padding-top + border so the actions feel
- * separated from the fields above.
- */
+/* ---------- Form footer ---------- */
 .form-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--divider);
   margin-top: 4px;
 }
 .form-actions-note {
   margin-right: auto;
   font-family: var(--f-mono);
   font-size: 11px;
-  color: var(--text-3);
+  color: var(--text-4);
 }
 
-/* ---------- Inline-edit row ----------
- * Settings-list grammar: at rest each row reads as plain text
- * (label-left, value-right). On hover the row tints to --surface-2
- * with a subtle [edit] CTA on the right. On .editing the value
- * cell becomes a true input shell (.ie-edit) with the accent ring.
- *
- * Native habitat: workspace settings, project settings, alert thresholds.
- * NOT the right grammar for new-record modals — use .field-modal there.
- *
- * Markup contract:
- *   <ul class="ie-list">
- *     <li class="ie-row" data-editing="false" data-error="false">
- *       <span class="ie-label">Workspace name</span>
- *       <span class="ie-value">langprobe-prod</span>
- *       <span class="ie-cta">edit</span>
- *     </li>
- *   </ul>
- *
- * In edit mode swap .ie-value's children for an .ie-edit shell.
- */
+/* ---------- Inline-edit row (settings-list grammar) ---------- */
 .ie-list {
   display: grid;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--r-3);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), var(--shadow-1);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
   list-style: none;
   margin: 0;
@@ -867,24 +715,18 @@ select[aria-invalid="true"]:focus {
   grid-template-columns: 200px 1fr auto;
   align-items: center;
   column-gap: 24px;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--border);
+  padding: 15px 24px;
+  border-bottom: 1px solid var(--divider-row);
   transition: background var(--motion-fast) var(--ease-out);
   cursor: pointer;
 }
 .ie-row:last-child { border-bottom: 0; }
-.ie-row:hover { background: var(--surface-2); }
+.ie-row:hover { background: var(--row-hover); }
 .ie-row[data-editing="true"] { background: var(--surface); cursor: default; }
 .ie-row[data-error="true"] { background: var(--danger-soft); }
 .ie-row[data-error="true"]:hover { background: #F8D9D4; }
-
-.ie-label {
-  font-size: var(--fs-13);
-  color: var(--text-2);
-  font-weight: 500;
-}
+.ie-label { font-size: var(--fs-13); color: var(--text-2); font-weight: 600; }
 .ie-label .req { color: var(--danger); margin-left: 2px; }
-
 .ie-value {
   font-family: var(--f-mono);
   font-size: var(--fs-13);
@@ -895,10 +737,7 @@ select[aria-invalid="true"]:focus {
   min-width: 0;
 }
 .ie-value .placeholder { color: var(--text-3); }
-.ie-value .truncate {
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-
+.ie-value .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ie-cta {
   font-family: var(--f-mono);
   font-size: 11px;
@@ -908,32 +747,26 @@ select[aria-invalid="true"]:focus {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   opacity: 0;
-  transition:
-    opacity var(--motion-fast) var(--ease-out),
-    color var(--motion-fast) var(--ease-out);
+  transition: opacity var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
 }
 .ie-row:hover .ie-cta { opacity: 1; color: var(--text-3); }
-.ie-row[data-editing="true"] .ie-cta {
-  /* --link (not --accent) so this label clears AA as text; same hue. */
-  opacity: 1; color: var(--link); font-weight: 600;
-}
+.ie-row[data-editing="true"] .ie-cta { opacity: 1; color: var(--link); font-weight: 600; }
 
-/* Edit-mode input shell — sits inside .ie-value when row is editing */
 .ie-edit {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 6px 10px;
-  border: 1px solid var(--accent);
-  border-radius: var(--r-2);
+  padding: 7px 14px;
+  border: 1.5px solid var(--accent);
+  border-radius: var(--r-pill);
   background: var(--surface);
-  box-shadow: 0 0 0 1px var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-ring);
   transition: border-color var(--motion-fast) var(--ease-out);
 }
 .ie-row[data-error="true"] .ie-edit {
   border-color: var(--danger);
-  box-shadow: 0 0 0 1px var(--danger);
+  box-shadow: 0 0 0 4px rgba(192,56,43,0.14);
 }
 .ie-edit > input,
 .ie-edit > select,
@@ -948,8 +781,8 @@ select[aria-invalid="true"]:focus {
   color: var(--text);
   padding: 0;
   height: 22px;
-  /* Inputs section above defines a default 1px border; reset for edit shell. */
   width: auto;
+  box-shadow: none;
 }
 .ie-edit > textarea {
   height: auto;
@@ -958,13 +791,7 @@ select[aria-invalid="true"]:focus {
   padding: 2px 0;
   line-height: 1.5;
 }
-.ie-edit > select {
-  appearance: none;
-  -webkit-appearance: none;
-  padding-right: 18px;
-  cursor: pointer;
-}
-
+.ie-edit > select { appearance: none; -webkit-appearance: none; padding-right: 18px; cursor: pointer; }
 .ie-pfx {
   font-family: var(--f-mono);
   font-size: 12px;
@@ -972,69 +799,40 @@ select[aria-invalid="true"]:focus {
   padding-right: 6px;
   border-right: 1px solid var(--border);
 }
-
-/* Small inline action button (reveal, copy, rotate) — sits inside an
- * .ie-edit or .input-shell next to the input. Not a primary .btn — quieter. */
 .ie-sfx-btn {
   display: inline-flex;
   align-items: center;
-  height: 22px;
-  padding: 0 8px;
+  height: 24px;
+  padding: 0 10px;
   border: 1px solid var(--border);
-  border-radius: var(--r-1);
+  border-radius: var(--r-pill);
   background: var(--surface);
   color: var(--text-2);
   font-family: var(--f-mono);
   font-size: 11px;
   cursor: pointer;
-  transition:
-    background var(--motion-fast) var(--ease-out),
-    color var(--motion-fast) var(--ease-out);
+  transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
 }
 .ie-sfx-btn:hover { background: var(--hover); color: var(--text); }
 
-/* ---------- Input shell ----------
- * Modal/dialog form grammar: a hairline-bordered shell that wraps an
- * <input>, <select>, or <textarea> and provides slot composition for
- * prefix (e.g. "https://") and suffix (action buttons) without changing
- * the input element itself.
- *
- *   <span class="input-shell">
- *     <span class="ie-pfx">https://</span>
- *     <input value="hooks.example.com" />
- *     <button class="ie-sfx-btn">reveal</button>
- *   </span>
- *
- * Hover bumps the border, focus paints the accent ring (no layout shift).
- * The shell intentionally overrides the global input border so the *shell*
- * carries the affordance, not the inner element.
- */
+/* ---------- Input shell (modal/dialog form grammar) — pill ---------- */
 .input-shell {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-  min-height: 32px;
+  padding: 9px 16px;
+  min-height: 38px;
   border: 1px solid var(--border);
-  border-radius: var(--r-2);
+  border-radius: var(--r-pill);
   background: var(--surface);
-  transition:
-    border-color var(--motion-fast) var(--ease-out),
-    box-shadow var(--motion-fast) var(--ease-out);
+  transition: border-color var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out);
 }
 .input-shell:hover { border-color: var(--border-strong); }
-.input-shell:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
+.input-shell:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-ring); }
 .input-shell.input-shell-error,
-.input-shell[data-error="true"] {
-  border-color: var(--danger);
-}
+.input-shell[data-error="true"] { border-color: var(--danger); }
 .input-shell.input-shell-error:focus-within,
-.input-shell[data-error="true"]:focus-within {
-  box-shadow: 0 0 0 1px var(--danger);
-}
+.input-shell[data-error="true"]:focus-within { box-shadow: 0 0 0 4px rgba(192,56,43,0.14); }
 .input-shell > input,
 .input-shell > select,
 .input-shell > textarea {
@@ -1048,12 +846,11 @@ select[aria-invalid="true"]:focus {
   color: var(--text);
   padding: 0;
   height: 20px;
-  /* Reset width:100% from the global input rule so the shell controls
-   * width and the inner element flexes. */
   width: auto;
+  box-shadow: none;
 }
 .input-shell > input::placeholder,
-.input-shell > textarea::placeholder { color: var(--text-3); }
+.input-shell > textarea::placeholder { color: var(--text-4); }
 .input-shell > textarea {
   height: auto;
   min-height: 60px;
@@ -1061,39 +858,23 @@ select[aria-invalid="true"]:focus {
   padding: 2px 0;
   line-height: 1.5;
 }
-.input-shell > select {
-  appearance: none;
-  -webkit-appearance: none;
-  padding-right: 18px;
-  cursor: pointer;
-}
-/* Use this modifier on a select-bearing shell to render the ▾ caret. */
+.input-shell > select { appearance: none; -webkit-appearance: none; padding-right: 18px; cursor: pointer; }
+/* A textarea-bearing shell should be a rounded box, not a pill. */
+.input-shell:has(> textarea) { border-radius: var(--r-4); align-items: flex-start; }
 .input-shell-select { position: relative; }
 .input-shell-select::after {
   content: "▾";
   position: absolute;
-  right: 10px;
+  right: 14px;
   top: 50%;
   transform: translateY(-50%);
   font-family: var(--f-mono);
   font-size: 11px;
-  color: var(--text-3);
+  color: var(--text-4);
   pointer-events: none;
 }
 
-/* ---------- Field (modal grid layout) ----------
- * Two-column label-left / control-right layout for modals and panels.
- * Composes with .input-shell. Use this instead of .field when you want
- * the heavier "settings page" rhythm — 140px label column, fields
- * vertically stacked with 14px gaps.
- *
- *   <div class="field-modal">
- *     <label>Provider <span class="req">*</span></label>
- *     <div class="field-modal-control">
- *       <span class="input-shell input-shell-select">…</span>
- *     </div>
- *   </div>
- */
+/* ---------- Field (modal grid layout) ---------- */
 .field-modal {
   display: grid;
   grid-template-columns: 140px 1fr;
@@ -1101,26 +882,17 @@ select[aria-invalid="true"]:focus {
   align-items: start;
 }
 .field-modal > label {
-  font-size: var(--fs-13);
-  color: var(--text-2);
-  font-weight: 500;
-  padding-top: 6px;
+  font-size: 10.5px;
+  color: var(--text-4);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding-top: 10px;
 }
 .field-modal > label .req { color: var(--danger); margin-left: 2px; }
 .field-modal-control { display: grid; gap: 6px; }
 
-/* ---------- Switch ----------
- * Replaces the raw <input type="checkbox"> for boolean toggles.
- *
- *   <label class="switch">
- *     <input type="checkbox" checked />
- *     <span class="track"></span>
- *     <span class="switch-label">Default for new projects</span>
- *   </label>
- *
- * The hidden input drives state; the visible track + knob render the
- * affordance. Knob spring-eases on toggle.
- */
+/* ---------- Switch ---------- */
 .switch {
   position: relative;
   display: inline-flex;
@@ -1129,11 +901,7 @@ select[aria-invalid="true"]:focus {
   cursor: pointer;
   user-select: none;
 }
-.switch input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
+.switch input { position: absolute; opacity: 0; pointer-events: none; }
 .switch .track {
   width: 30px;
   height: 16px;
@@ -1141,9 +909,7 @@ select[aria-invalid="true"]:focus {
   background: var(--surface-3);
   border: 1px solid var(--border-strong);
   position: relative;
-  transition:
-    background var(--motion-base) var(--ease-out),
-    border-color var(--motion-base) var(--ease-out);
+  transition: background var(--motion-base) var(--ease-out), border-color var(--motion-base) var(--ease-out);
 }
 .switch .track::after {
   content: "";
@@ -1155,38 +921,28 @@ select[aria-invalid="true"]:focus {
   background: #fff;
   border-radius: 9999px;
   box-shadow: var(--shadow-1);
-  /* Exponential ease-out (no overshoot) — matches the design system's
-   * "no bounce, no elastic" motion rule. */
   transition: transform var(--motion-base) var(--ease-out-soft);
 }
-.switch input:checked + .track {
-  background: var(--accent);
-  border-color: var(--accent);
-}
+.switch input:checked + .track { background: var(--accent); border-color: var(--accent); }
 .switch input:checked + .track::after { transform: translateX(14px); }
-.switch input:focus-visible + .track {
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--accent);
-}
+.switch input:focus-visible + .track { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--accent); }
 .switch input:disabled + .track { opacity: 0.5; cursor: not-allowed; }
-.switch-label {
-  font-size: var(--fs-13);
-  color: var(--text);
-}
+.switch-label { font-size: var(--fs-13); color: var(--text); }
 
 /* Code block */
 pre, .code {
   font-family: var(--f-mono);
-  font-size: var(--fs-13);
-  line-height: 1.5;
-  background: var(--surface-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-2);
-  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-4);
+  padding: 14px 18px;
   overflow: auto;
   color: var(--text);
 }
 
-/* Scrollbars (subtle, builder-grade) */
+/* Scrollbars */
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
@@ -1196,14 +952,8 @@ pre, .code {
 }
 *::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
 
-/* ---------- Cinematic entrance — opt-in via .stage / .stage-item ----------
- * Used on the auth surface (and only on the auth surface for now) to give
- * the first-impression page a real moment of theatre. Items inside .stage
- * fade up with a 60ms stagger; the .stage container itself fades in.
- * Reduced-motion media query at the bottom of the file zeroes everything. */
-.stage {
-  animation: stage-fade var(--motion-stage) var(--ease-out-soft) both;
-}
+/* ---------- Cinematic entrance — opt-in via .stage / .stage-item ---------- */
+.stage { animation: stage-fade var(--motion-stage) var(--ease-out-soft) both; }
 .stage-item {
   opacity: 0;
   transform: translateY(8px);
@@ -1216,17 +966,13 @@ pre, .code {
 .stage-item:nth-child(5) { animation-delay: 300ms; }
 .stage-item:nth-child(6) { animation-delay: 360ms; }
 
-@keyframes stage-fade {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
+@keyframes stage-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes stage-rise {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Reduced motion — wipe every transition + animation, including the
- * cinematic stage entrance, for users who've requested less motion. */
+/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0ms !important;

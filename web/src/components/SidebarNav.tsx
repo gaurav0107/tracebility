@@ -1,66 +1,46 @@
 "use client";
 
-import {
-  Activity,
-  Bell,
-  Boxes,
-  Database,
-  FlaskConical,
-  GanttChart,
-  GitCompare,
-  Gavel,
-  Home,
-  KeyRound,
-  LineChart,
-  Library,
-  MessagesSquare,
-  PencilLine,
-  Play,
-  Settings,
-  Sparkles,
-  ThumbsUp,
-  Users,
-} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
 
-type NavItem = { label: string; href: string; icon: ReactNode };
+type NavItem = { label: string; href: string };
 type NavSection = { label: string; items: NavItem[] };
 
+// Text-only pill nav, per the design overhaul (no icons). Routes are the real
+// app routes — the target canvas's nav list is illustrative, we keep every page.
 const SECTIONS: NavSection[] = [
   {
     label: "Observe",
     items: [
-      { label: "Overview", href: "/", icon: <Home size={16} strokeWidth={1.5} /> },
-      { label: "Traces", href: "/runs", icon: <Activity size={16} strokeWidth={1.5} /> },
-      { label: "Threads", href: "/threads", icon: <MessagesSquare size={16} strokeWidth={1.5} /> },
-      { label: "Monitoring", href: "/monitoring", icon: <LineChart size={16} strokeWidth={1.5} /> },
-      { label: "Alerts", href: "/alerts", icon: <Bell size={16} strokeWidth={1.5} /> },
-      { label: "Replay", href: "/replay", icon: <Sparkles size={16} strokeWidth={1.5} /> },
+      { label: "Overview", href: "/" },
+      { label: "Traces", href: "/runs" },
+      { label: "Threads", href: "/threads" },
+      { label: "Monitoring", href: "/monitoring" },
+      { label: "Alerts", href: "/alerts" },
+      { label: "Replay", href: "/replay" },
     ],
   },
   {
     label: "Improve",
     items: [
-      { label: "Evals", href: "/evals", icon: <FlaskConical size={16} strokeWidth={1.5} /> },
-      { label: "PoLL panels", href: "/poll-runs", icon: <GanttChart size={16} strokeWidth={1.5} /> },
-      { label: "Judges", href: "/judges", icon: <Gavel size={16} strokeWidth={1.5} /> },
-      { label: "Comparisons", href: "/comparisons", icon: <GitCompare size={16} strokeWidth={1.5} /> },
-      { label: "Datasets", href: "/datasets", icon: <Database size={16} strokeWidth={1.5} /> },
-      { label: "Prompts", href: "/prompts", icon: <Library size={16} strokeWidth={1.5} /> },
-      { label: "Playground", href: "/playground", icon: <Play size={16} strokeWidth={1.5} /> },
-      { label: "Annotations", href: "/annotations", icon: <PencilLine size={16} strokeWidth={1.5} /> },
-      { label: "Feedback", href: "/feedback", icon: <ThumbsUp size={16} strokeWidth={1.5} /> },
-      { label: "Studio", href: "/studio", icon: <Boxes size={16} strokeWidth={1.5} /> },
+      { label: "Evals", href: "/evals" },
+      { label: "PoLL panels", href: "/poll-runs" },
+      { label: "Judges", href: "/judges" },
+      { label: "Comparisons", href: "/comparisons" },
+      { label: "Datasets", href: "/datasets" },
+      { label: "Prompts", href: "/prompts" },
+      { label: "Playground", href: "/playground" },
+      { label: "Annotations", href: "/annotations" },
+      { label: "Feedback", href: "/feedback" },
+      { label: "Studio", href: "/studio" },
     ],
   },
   {
     label: "Settings",
     items: [
-      { label: "API keys", href: "/api-keys", icon: <KeyRound size={16} strokeWidth={1.5} /> },
-      { label: "Members", href: "/members", icon: <Users size={16} strokeWidth={1.5} /> },
-      { label: "Workspace", href: "/workspace", icon: <Settings size={16} strokeWidth={1.5} /> },
+      { label: "API keys", href: "/api-keys" },
+      { label: "Members", href: "/members" },
+      { label: "Workspace", href: "/workspace" },
     ],
   },
 ];
@@ -70,7 +50,7 @@ export function SidebarNav() {
   return (
     <>
       {SECTIONS.map((section) => (
-        <div key={section.label} style={{ paddingBottom: 8 }}>
+        <div key={section.label} style={{ display: "flex", flexDirection: "column", gap: 1 }}>
           <div className="nav-section-label">{section.label}</div>
           {section.items.map((item) => {
             const active = isActive(pathname, item.href);
@@ -80,7 +60,6 @@ export function SidebarNav() {
                 href={item.href}
                 className={`nav-item${active ? " active" : ""}`}
               >
-                <span className="nav-icon">{item.icon}</span>
                 <span>{item.label}</span>
               </Link>
             );
