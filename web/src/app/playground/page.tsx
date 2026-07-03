@@ -132,11 +132,10 @@ function PageInterior({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        padding: 24,
+        padding: "28px 32px 32px",
         display: "flex",
         flexDirection: "column",
         gap: 20,
-        maxWidth: 1400,
       }}
     >
       {children}
@@ -155,22 +154,21 @@ function PageHeader({
     <header
       style={{
         display: "flex",
-        alignItems: "baseline",
-        justifyContent: "space-between",
-        gap: 16,
+        alignItems: "center",
+        gap: 14,
+        flexShrink: 0,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-        <h1>{title}</h1>
-        {subtitle ? (
-          <span
-            className="mono"
-            style={{ fontSize: 12, color: "var(--text-3)" }}
-          >
-            {subtitle}
-          </span>
-        ) : null}
-      </div>
+      <h1 style={{ textTransform: "lowercase" }}>{title}</h1>
+      {subtitle ? (
+        <span
+          className="mono"
+          style={{ fontSize: 12, color: "var(--text-4)" }}
+        >
+          {subtitle}
+        </span>
+      ) : null}
+      <span style={{ flex: 1 }} />
     </header>
   );
 }
@@ -183,16 +181,21 @@ function RecentSessionsCard({
   return (
     <section
       className="card"
-      style={{ overflow: "hidden", position: "sticky", top: 16 }}
+      style={{ overflow: "hidden", position: "sticky", top: 28 }}
     >
-      <div className="card-head">
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-          <h2>Recent runs</h2>
-          <span className="card-sub">last 20</span>
-        </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "18px 24px 12px",
+        }}
+      >
+        <span style={{ fontSize: 14.5, fontWeight: 800 }}>recent sessions</span>
+        <span className="card-sub">this project</span>
       </div>
       {sessions.length === 0 ? (
-        <div style={{ padding: 16 }}>
+        <div style={{ padding: "4px 24px 20px" }}>
           <p
             style={{
               color: "var(--text-3)",
@@ -223,78 +226,63 @@ function RecentSessionsCard({
 }
 
 function SessionRow({ session }: { session: PlaygroundSessionOut }) {
-  return (
-    <div
-      style={{
-        padding: 12,
-        borderTop: "1px solid var(--border-2)",
-        display: "grid",
-        gap: 4,
-      }}
-    >
-      <div
+  const shortId = `pg_${session.id.slice(0, 4)}`;
+  const tokens =
+    session.total_tokens != null ? `${session.total_tokens} tok` : "— tok";
+  const rowStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    height: 46,
+    padding: "0 24px",
+    borderTop: "1px solid var(--divider-row)",
+    textDecoration: "none",
+  };
+  const inner = (
+    <>
+      <span
+        className="mono"
+        style={{ fontSize: 12, fontWeight: 600, color: "var(--link)" }}
+      >
+        {shortId}
+      </span>
+      <span
+        className="mono"
         style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          gap: 8,
+          fontSize: 11.5,
+          color: "var(--text-2)",
+          flex: 1,
+          minWidth: 0,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
         }}
       >
-        <span className="mono" style={{ fontSize: 12 }}>
-          {session.model}
-        </span>
-        <SessionStatusBadge status={session.status} />
-      </div>
-      {session.error ? (
-        <div
-          className="mono"
-          style={{
-            fontSize: 11,
-            color: "var(--danger)",
-            lineHeight: 1.45,
-          }}
-        >
-          {truncate(session.error, 140)}
-        </div>
-      ) : (
-        <div
-          style={{
-            fontSize: 12,
-            color: "var(--text-2)",
-            lineHeight: 1.45,
-          }}
-        >
-          {truncate(session.output_text ?? "", 160)}
-        </div>
-      )}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          gap: 8,
-          fontSize: 11,
-          color: "var(--text-3)",
-        }}
+        {session.model}
+      </span>
+      <span
+        className="mono"
+        style={{ fontSize: 11.5, color: "var(--text-2)" }}
       >
-        <span className="mono">
-          {session.latency_ms != null ? `${session.latency_ms} ms` : "—"} ·{" "}
-          {session.total_tokens != null ? `${session.total_tokens} tok` : "—"}
-        </span>
-        {session.run_id ? (
-          <Link
-            href={`/runs/${session.run_id}`}
-            className="mono"
-            style={{ color: "var(--link)" }}
-          >
-            trace →
-          </Link>
-        ) : (
-          <span className="mono">{fmtRelative(session.created_at)}</span>
-        )}
-      </div>
-    </div>
+        {tokens}
+      </span>
+      <SessionStatusBadge status={session.status} />
+      <span
+        className="mono"
+        style={{ fontSize: 11.5, color: "var(--text-4)" }}
+      >
+        {fmtRelative(session.created_at)}
+      </span>
+    </>
   );
+  if (session.run_id) {
+    return (
+      <Link href={`/runs/${session.run_id}`} style={rowStyle}>
+        {inner}
+      </Link>
+    );
+  }
+  return <div style={rowStyle}>{inner}</div>;
 }
 
 function SessionStatusBadge({
@@ -329,11 +317,6 @@ function UnconfiguredState({ reason }: { reason: string | null }) {
       ) : null}
     </div>
   );
-}
-
-function truncate(s: string, n: number): string {
-  if (s.length <= n) return s;
-  return `${s.slice(0, n)}…`;
 }
 
 function fmtRelative(iso: string): string {

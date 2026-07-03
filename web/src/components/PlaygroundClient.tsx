@@ -382,7 +382,14 @@ export function PlaygroundComposer({
         maxTokens={maxTokens}
         setMaxTokens={setMaxTokens}
       />
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
         {error ? (
           <span
             className="mono"
@@ -393,12 +400,21 @@ export function PlaygroundComposer({
         ) : null}
         <button
           type="button"
-          className="btn btn-primary"
+          className="btn btn-primary btn-lg"
           onClick={run}
           disabled={pending || (loadedVersionId === null && isComposerEmpty)}
+          style={{ fontSize: 14, fontWeight: 700, gap: 9 }}
         >
-          {pending ? <Loader2 size={14} className="spin" /> : <Play size={14} />}
-          {pending ? "running…" : mode === "compare" ? "Run both" : "Run"}
+          {pending ? (
+            <>
+              <Loader2 size={14} className="spin" /> running…
+            </>
+          ) : (
+            <>
+              {mode === "compare" ? "run both" : "run"}{" "}
+              <Play size={11} style={{ fill: "currentColor" }} />
+            </>
+          )}
         </button>
       </div>
       {result ? <OutputCard result={result} /> : null}
@@ -414,23 +430,45 @@ function ModeToggle({
   mode: "single" | "compare";
   onChange: (m: "single" | "compare") => void;
 }) {
+  const segStyle = (active: boolean): React.CSSProperties => ({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 12.5,
+    fontWeight: active ? 700 : 600,
+    color: active ? "var(--text)" : "var(--text-3)",
+    background: active ? "var(--surface)" : "transparent",
+    boxShadow: active ? "0 2px 6px rgba(10,10,10,0.08)" : "none",
+    borderRadius: "var(--r-pill)",
+    padding: "6px 16px",
+    border: 0,
+    cursor: "pointer",
+    fontFamily: "var(--f-sans)",
+    letterSpacing: "-0.005em",
+  });
   return (
-    <div style={{ display: "flex", gap: 4 }}>
+    <div
+      style={{
+        display: "inline-flex",
+        gap: 2,
+        background: "var(--surface-3)",
+        borderRadius: "var(--r-pill)",
+        padding: 3,
+      }}
+    >
       <button
         type="button"
-        className={mode === "single" ? "btn btn-primary" : "btn btn-ghost"}
         onClick={() => onChange("single")}
-        style={{ fontSize: 12 }}
+        style={segStyle(mode === "single")}
       >
-        Single model
+        single model
       </button>
       <button
         type="button"
-        className={mode === "compare" ? "btn btn-primary" : "btn btn-ghost"}
         onClick={() => onChange("compare")}
-        style={{ fontSize: 12 }}
+        style={segStyle(mode === "compare")}
       >
-        <Sparkles size={13} /> Side-by-side
+        <Sparkles size={13} /> side-by-side
       </button>
     </div>
   );
@@ -487,11 +525,12 @@ function PromptSourceCard({
       <div
         style={{
           display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 10,
         }}
       >
-        <h2 style={{ margin: 0 }}>Prompt</h2>
+        <span className="card-title">prompt</span>
+        <span style={{ flex: 1 }} />
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <Field label="Load">
             <select
@@ -623,17 +662,25 @@ function PromptSourceCard({
       ) : null}
       <button
         type="button"
-        className="btn btn-ghost btn-sm"
         onClick={() =>
           setMessages((prev) => [...prev, { role: "human", content: "" }])
         }
         style={{
           width: "fit-content",
+          display: "inline-flex",
+          alignItems: "center",
           fontSize: 12,
-          borderStyle: "dashed",
+          fontWeight: 600,
+          fontFamily: "var(--f-sans)",
+          color: "var(--text-4)",
+          background: "transparent",
+          border: "1px dashed var(--border-muted)",
+          borderRadius: "var(--r-pill)",
+          padding: "6px 16px",
+          cursor: "pointer",
         }}
       >
-        + Add message
+        + add message
       </button>
     </section>
   );
@@ -654,14 +701,14 @@ function VariablesCard({
         style={{
           display: "flex",
           alignItems: "baseline",
-          justifyContent: "space-between",
-          marginBottom: 12,
+          gap: 10,
+          marginBottom: 14,
         }}
       >
-        <h2 style={{ margin: 0 }}>Variables</h2>
+        <span className="card-title">variables</span>
         <span
           className="mono"
-          style={{ fontSize: 11, color: "var(--text-3)" }}
+          style={{ fontSize: 11, color: "var(--text-4)" }}
         >
           detected from {"{{ var }}"} substitutions
         </span>
@@ -671,17 +718,52 @@ function VariablesCard({
           No variables detected in the template.
         </p>
       ) : (
-        <div style={{ display: "grid", gap: 8 }}>
+        <div style={{ display: "grid", gap: 12 }}>
           {keys.map((k) => (
-            <Field key={k} label={k} mono>
+            <div
+              key={k}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "90px 1fr",
+                gap: 12,
+                alignItems: "start",
+              }}
+            >
+              <span
+                className="mono"
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "var(--link)",
+                  background: "var(--accent-fill)",
+                  borderRadius: "var(--r-pill)",
+                  padding: "5px 12px",
+                  textAlign: "center",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {k}
+              </span>
               <textarea
+                aria-label={`value for ${k}`}
                 value={values[k] ?? ""}
                 onChange={(e) => onChange(k, e.target.value)}
                 rows={2}
                 placeholder={`value for {{ ${k} }}`}
-                style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}
+                style={{
+                  fontFamily: "var(--f-mono)",
+                  fontSize: 12,
+                  lineHeight: 1.65,
+                  color: "var(--text-2)",
+                  background: "var(--surface-sidebar)",
+                  border: "1px solid var(--border-soft)",
+                  borderRadius: "var(--r-3)",
+                  padding: "11px 14px",
+                }}
               />
-            </Field>
+            </div>
           ))}
         </div>
       )}
@@ -712,12 +794,14 @@ function ModelCard({
 }) {
   return (
     <section className="card card-pad-lg">
-      <h2 style={{ margin: "0 0 12px" }}>Model</h2>
+      <span className="card-title">model</span>
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: mode === "compare" ? "1fr 1fr 1fr 1fr" : "1fr 1fr 1fr",
+          gridTemplateColumns:
+            mode === "compare" ? "1.4fr 1.4fr 1fr 1fr" : "1.6fr 1fr 1fr",
           gap: 12,
+          marginTop: 14,
         }}
       >
         <ModelPicker
@@ -730,6 +814,7 @@ function ModelCard({
         ) : null}
         <Field label="Temperature" hint="0.0..2.0 (blank = provider default)">
           <input
+            className="mono"
             value={temperature}
             inputMode="decimal"
             onChange={(e) => setTemperature(e.target.value)}
@@ -738,6 +823,7 @@ function ModelCard({
         </Field>
         <Field label="Max tokens">
           <input
+            className="mono"
             value={maxTokens}
             inputMode="numeric"
             onChange={(e) => setMaxTokens(e.target.value)}
@@ -756,76 +842,72 @@ function OutputCard({ result }: { result: PlaygroundSessionOut }) {
       : result.status === "done"
         ? "success"
         : "neutral";
+  const failed = result.status === "failed";
   return (
-    <section className="card card-pad-lg" style={{ display: "grid", gap: 12 }}>
+    <section className="card card-pad-lg">
       <header
         style={{
           display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          gap: 8,
+          alignItems: "center",
+          gap: 10,
         }}
       >
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-          <h3 style={{ margin: 0 }}>Output</h3>
-          <span
-            className="mono"
-            style={{ fontSize: 12, color: "var(--text-3)" }}
-          >
-            {result.model}
-          </span>
-          <StatusBadge status={result.status} tone={tone} />
-        </div>
+        <span className="card-title">output</span>
+        <span
+          className="mono"
+          style={{ fontSize: 11.5, color: "var(--text-4)" }}
+        >
+          {result.model}
+        </span>
+        <StatusBadge status={result.status} tone={tone} />
+        <span style={{ flex: 1 }} />
         {result.run_id ? (
           <Link
             href={`/runs/${result.run_id}`}
             className="mono"
-            style={{ fontSize: 12, color: "var(--link)" }}
+            style={{
+              fontSize: 11.5,
+              fontWeight: 600,
+              color: "var(--link)",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            }}
           >
             open in /runs <ExternalLink size={12} />
           </Link>
         ) : null}
       </header>
-      {result.status === "failed" ? (
-        <pre
-          style={{
-            margin: 0,
-            color: "var(--danger)",
-            fontSize: 12,
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-          }}
-        >
-          {result.error}
-        </pre>
-      ) : (
-        <pre
-          style={{
-            margin: 0,
-            background: "var(--surface-2)",
-            padding: 12,
-            borderRadius: 8,
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            fontSize: 13,
-            maxHeight: 360,
-            overflow: "auto",
-          }}
-        >
-          {result.output_text || "(empty)"}
-        </pre>
-      )}
+      <div
+        style={{
+          background: "var(--surface-2)",
+          border: "1px solid var(--border-soft)",
+          borderRadius: "var(--r-4)",
+          padding: "16px 18px",
+          marginTop: 14,
+          fontSize: 13.5,
+          lineHeight: 1.65,
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+          maxHeight: 360,
+          overflow: "auto",
+          color: failed ? "var(--danger)" : "var(--text)",
+          fontFamily: failed ? "var(--f-mono)" : "var(--f-sans)",
+        }}
+      >
+        {failed ? result.error : result.output_text || "(empty)"}
+      </div>
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
           gap: 12,
-          fontSize: 12,
+          marginTop: 18,
         }}
       >
         <Stat label="Latency" value={result.latency_ms != null ? `${result.latency_ms} ms` : "—"} />
-        <Stat label="Prompt tokens" value={String(result.prompt_tokens ?? "—")} />
-        <Stat label="Completion tokens" value={String(result.completion_tokens ?? "—")} />
+        <Stat label="Prompt tok" value={String(result.prompt_tokens ?? "—")} />
+        <Stat label="Completion" value={String(result.completion_tokens ?? "—")} />
         <Stat label="Total" value={String(result.total_tokens ?? "—")} />
       </div>
     </section>
@@ -844,27 +926,41 @@ function StatusBadge({
       ? "badge badge-success"
       : tone === "danger"
         ? "badge badge-danger"
-        : "badge badge-neutral";
-  return <span className={cls}>{status}</span>;
+        : "badge badge-warn";
+  const dotCls =
+    tone === "success"
+      ? "dot dot-success"
+      : tone === "danger"
+        ? "dot dot-danger"
+        : "dot dot-warn";
+  return (
+    <span className={cls}>
+      <span className={dotCls} aria-hidden />
+      {status}
+    </span>
+  );
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <div
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <span
         style={{
-          fontSize: 11,
-          color: "var(--text-3)",
+          fontSize: 10.5,
+          fontWeight: 700,
+          color: "var(--text-4)",
           textTransform: "uppercase",
-          letterSpacing: 0.4,
-          marginBottom: 4,
+          letterSpacing: "0.08em",
         }}
       >
         {label}
-      </div>
-      <div className="num" style={{ fontSize: 14, color: "var(--text-1)" }}>
+      </span>
+      <span
+        className="mono num"
+        style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}
+      >
         {value}
-      </div>
+      </span>
     </div>
   );
 }
@@ -881,14 +977,15 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label style={{ display: "grid", gap: 4 }}>
+    <label style={{ display: "grid", gap: 6 }}>
       <span
         className={mono ? "mono" : undefined}
         style={{
-          fontSize: 11,
-          color: "var(--text-3)",
+          fontSize: 10.5,
+          fontWeight: 700,
+          color: "var(--text-4)",
           textTransform: mono ? "none" : "uppercase",
-          letterSpacing: 0.4,
+          letterSpacing: mono ? 0 : "0.08em",
         }}
       >
         {label}
@@ -897,7 +994,7 @@ function Field({
       {hint ? (
         <span
           className="mono"
-          style={{ fontSize: 11, color: "var(--text-3)" }}
+          style={{ fontSize: 11, color: "var(--text-4)" }}
         >
           {hint}
         </span>

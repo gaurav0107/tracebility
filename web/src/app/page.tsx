@@ -177,7 +177,7 @@ function PageInterior({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        padding: 24,
+        padding: "28px 32px 32px",
         display: "grid",
         gap: 20,
         maxWidth: 1400,
@@ -199,35 +199,32 @@ function PageHeader({
   project?: Project | null;
   windowSeconds?: number;
 }) {
+  const meta =
+    project && windowSeconds !== undefined
+      ? `${project.slug} · last ${rangeLabel(windowSeconds)}`
+      : project
+        ? project.slug
+        : subtitle;
   return (
     <header
       style={{
         display: "flex",
-        alignItems: "baseline",
-        justifyContent: "space-between",
-        gap: 16,
+        alignItems: "center",
+        gap: 14,
         flexWrap: "wrap",
+        flexShrink: 0,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-        <h1>{title}</h1>
-        {project ? (
-          <span
-            className="mono"
-            style={{ fontSize: 12, color: "var(--text-3)" }}
-          >
-            {project.slug}
-          </span>
-        ) : null}
-        {subtitle ? (
-          <span
-            className="mono"
-            style={{ fontSize: 12, color: "var(--text-3)" }}
-          >
-            {subtitle}
-          </span>
-        ) : null}
-      </div>
+      <h1 style={{ margin: 0 }}>{title}</h1>
+      {meta ? (
+        <span
+          className="mono"
+          style={{ fontSize: 12, color: "var(--text-4)" }}
+        >
+          {meta}
+        </span>
+      ) : null}
+      <span style={{ flex: 1 }} />
       {project && windowSeconds !== undefined ? (
         <RangeChips windowSeconds={windowSeconds} />
       ) : null}
@@ -241,7 +238,14 @@ function RangeChips({ windowSeconds }: { windowSeconds: number }) {
   return (
     <nav
       aria-label="Time range"
-      style={{ display: "flex", gap: 4, alignItems: "center" }}
+      style={{
+        display: "flex",
+        gap: 2,
+        alignItems: "center",
+        background: "var(--surface-3)",
+        borderRadius: "var(--r-pill)",
+        padding: 3,
+      }}
     >
       {RANGES.map((r) => {
         const active = r.seconds === windowSeconds;
@@ -250,17 +254,20 @@ function RangeChips({ windowSeconds }: { windowSeconds: number }) {
             key={r.seconds}
             href={`/?window=${r.seconds}`}
             scroll={false}
-            className="btn btn-sm btn-ghost"
-            style={
-              active
-                ? {
-                    background: "var(--surface-3)",
-                    color: "var(--text)",
-                    fontWeight: 500,
-                    fontVariantNumeric: "tabular-nums",
-                  }
-                : { color: "var(--text-3)", fontVariantNumeric: "tabular-nums" }
-            }
+            style={{
+              fontFamily: "var(--f-mono)",
+              fontSize: 12,
+              fontWeight: active ? 600 : 500,
+              color: active ? "var(--text)" : "var(--text-3)",
+              background: active ? "var(--surface)" : "transparent",
+              boxShadow: active ? "var(--shadow-chip)" : "none",
+              borderRadius: "var(--r-pill)",
+              padding: "6px 14px",
+              textDecoration: "none",
+              fontVariantNumeric: "tabular-nums",
+              transition:
+                "background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out)",
+            }}
             aria-current={active ? "page" : undefined}
           >
             {r.label}
@@ -404,7 +411,7 @@ function ChecklistItem({
           gap: 10,
           padding: 12,
           border: "1px solid var(--border)",
-          borderRadius: "var(--r-2)",
+          borderRadius: "var(--r-3)",
           textDecoration: "none",
           color: "var(--text)",
           background: done ? "var(--surface-2)" : "var(--surface)",
@@ -506,12 +513,12 @@ function FirstTraceQuickstart({ project }: { project: Project }) {
           className="mono"
           style={{
             margin: 0,
-            padding: 14,
-            background: "var(--surface-3)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--r-2)",
+            padding: 16,
+            background: "var(--surface-2)",
+            border: "1px solid var(--border-soft)",
+            borderRadius: "var(--r-4)",
             fontSize: 12,
-            lineHeight: 1.6,
+            lineHeight: 1.7,
             color: "var(--text)",
             overflow: "auto",
           }}
@@ -568,7 +575,17 @@ function RunsCard({
             . Click any row to inspect spans, prompts, and completions.
           </p>
         </div>
-        <Link href="/runs" className="btn btn-sm btn-ghost">
+        <Link
+          href="/runs"
+          style={{
+            fontSize: 12.5,
+            fontWeight: 700,
+            color: "var(--link)",
+            textDecoration: "none",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
           All runs →
         </Link>
       </header>
@@ -784,35 +801,34 @@ function MetricsStrip({
   return (
     <section
       aria-label={`Project metrics, last ${rangeLabel(windowSeconds)}`}
+      className="card"
       style={{
         display: "grid",
         gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`,
         gap: 0,
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--r-3)",
-        boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.6), var(--shadow-1)",
         overflow: "hidden",
+        flexShrink: 0,
       }}
     >
       {items.map((it, i) => (
         <div
           key={it.label}
           style={{
-            padding: "12px 16px",
-            display: "grid",
-            gap: 4,
-            borderLeft: i === 0 ? "none" : "1px solid var(--border)",
+            padding: "16px 20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 5,
+            borderLeft: i === 0 ? "none" : "1px solid var(--divider)",
             minWidth: 0,
           }}
         >
           <span
             style={{
-              fontSize: 11,
-              fontWeight: 500,
+              fontSize: 10.5,
+              fontWeight: 700,
               textTransform: "uppercase",
-              letterSpacing: "0.06em",
-              color: "var(--text-3)",
+              letterSpacing: "0.08em",
+              color: "var(--text-4)",
             }}
           >
             {it.label}
@@ -820,8 +836,8 @@ function MetricsStrip({
           <span
             className="mono"
             style={{
-              fontSize: 18,
-              fontWeight: 500,
+              fontSize: 19,
+              fontWeight: 600,
               letterSpacing: "-0.01em",
               color: it.tone === "danger" ? "var(--danger)" : "var(--text)",
               fontVariantNumeric: "tabular-nums",
@@ -947,7 +963,9 @@ function KindBadge({ kind }: { kind: string }) {
         ? "kind-tool"
         : k === "retriever" || k === "retr" || k === "reranker"
           ? "kind-retr"
-          : "kind-chain";
+          : k === "agent"
+            ? "kind-agent"
+            : "kind-chain";
   return <span className={`kind-badge ${cls}`}>{kind}</span>;
 }
 
