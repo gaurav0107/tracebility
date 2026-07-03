@@ -1,8 +1,48 @@
 # OSS + Cloud versions of langprobe — design
 
 > Date: 2026-07-02
-> Status: design approved in brainstorm; pending office-hours + CEO review.
-> Author: brainstorm session (gaurav)
+> Status: brainstorm decisions locked; **office-hours pivot appended** (see
+> "Office-hours pivot" below); pending CEO review.
+> Author: brainstorm + office-hours session (gaurav)
+
+## Office-hours pivot (2026-07-02) — READ FIRST
+
+Office-hours reframed the moat. The OSS/cloud split, license boundary, and
+metering *design* below all still stand — they are correct and cheap to decide
+now. But two things changed:
+
+1. **The moat is not pricing, and not replay-for-humans. It is agent-native
+   operation.** langprobe is designed so that AI agents (Claude, ChatGPT, any
+   MCP client) can *operate* on the captured data — research failures, propose
+   evals, run judges, close the loop — not just so humans can read dashboards.
+   Positioning evolves from *"the real debugger for agents"* (a human reaches
+   for it) to *"where agents debug agents."* "3× cheaper than Langfuse" is a
+   discount anyone can copy; an agent-native primitive surface with a
+   self-closing eval loop is a workflow no incumbent has.
+
+2. **The moat is the loop, exposed as typed verbs — not an MCP wrapper.**
+   Exposing traces over MCP (nouns) is table stakes everyone will ship. The
+   moat is the **verbs** an agent can chain into a self-improving loop. The
+   committed first loop:
+
+   > An agent takes a cluster of failing traces → proposes a new eval from them
+   > → runs it against historical data (backtest) → registers it as a recurring
+   > judge → and watches it.
+
+3. **Build order changed: metering is NOT first.** The metering subsystem
+   (below) is demoted behind the agent-native layer. Pre-product, the riskiest
+   unknown is "does an agent developer reach for this loop and refuse to give it
+   up," not "how do we bill." **First build = the vertical slice of that one
+   loop** (Approach A: thin but real, each step a clean typed verb, exposed via
+   a small MCP server), put in front of a real agent developer. Metering,
+   multi-tenancy, and billing come after the loop earns a "don't take it away"
+   reaction. Everything in "First build — the metering subsystem" is reframed as
+   *substrate the loop needs*, built in service of the loop, not first and not
+   for a bill.
+
+The sections below are the still-valid packaging/business frame. The next spec
+to write is the **agent-native eval loop (vertical slice)** — that is the moat
+and the first build.
 
 ## Summary
 
