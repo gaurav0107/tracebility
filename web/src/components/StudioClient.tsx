@@ -164,7 +164,7 @@ export function NewBranchButton({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(10,10,10,0.40)",
+        background: "var(--scrim)",
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
@@ -176,7 +176,7 @@ export function NewBranchButton({
       }}
     >
       <div
-        className="card card-pad-lg"
+        className="card-elevated card-pad-lg"
         style={{ width: "min(560px, 100%)", display: "grid", gap: 12 }}
       >
         <header
@@ -604,7 +604,7 @@ export function StudioEditsEditor({
                   onChange={(e) => updateEdit(idx, { value: e.target.value })}
                   rows={4}
                   placeholder={'{"max_tokens": 256}'}
-                  style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}
+                  style={{ fontFamily: "var(--f-mono)", fontSize: 12 }}
                 />
               ) : edit.field === "prompt" ? (
                 <textarea
@@ -685,26 +685,10 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label style={{ display: "grid", gap: 4 }}>
-      <span
-        style={{
-          fontSize: 11,
-          color: "var(--text-3)",
-          textTransform: "uppercase",
-          letterSpacing: 0.4,
-        }}
-      >
-        {label}
-      </span>
+    <label className="field">
+      <span className="field-label">{label}</span>
       {children}
-      {hint ? (
-        <span
-          className="mono"
-          style={{ fontSize: 11, color: "var(--text-3)" }}
-        >
-          {hint}
-        </span>
-      ) : null}
+      {hint ? <span className="field-hint">{hint}</span> : null}
     </label>
   );
 }

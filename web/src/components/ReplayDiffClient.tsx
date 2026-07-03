@@ -200,7 +200,7 @@ function ReplayResultView({ result }: { result: ReplayResult }) {
       <div
         style={{
           border: "1px solid var(--border)",
-          borderRadius: "var(--r-2)",
+          borderRadius: "var(--r-4)",
           overflow: "hidden",
           background: "var(--surface)",
         }}
@@ -253,16 +253,5 @@ function ReplayResultView({ result }: { result: ReplayResult }) {
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      style={{
-        fontSize: 11,
-        color: "var(--text-3)",
-        textTransform: "uppercase",
-        letterSpacing: 0.4,
-      }}
-    >
-      {children}
-    </span>
-  );
+  return <span className="field-label">{children}</span>;
 }

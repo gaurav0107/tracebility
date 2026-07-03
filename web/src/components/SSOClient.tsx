@@ -173,7 +173,7 @@ export function SSOConfigForm({
     <div style={{ display: "grid", gap: 16 }}>
       <section className="card card-pad-lg" style={{ display: "grid", gap: 12 }}>
         <div>
-          <h2 style={{ margin: 0 }}>OIDC config</h2>
+          <h2 style={{ margin: 0, fontSize: 14.5 }}>OIDC config</h2>
           <p style={{ color: "var(--text-3)", margin: "4px 0 0", fontSize: 12 }}>
             One IdP per workspace. Authorization-code flow with PKCE.
           </p>
@@ -259,7 +259,7 @@ export function SSOConfigForm({
         {summary ? (
           <p
             className="mono"
-            style={{ color: "var(--success, #1f7a3a)", margin: 0, fontSize: 12 }}
+            style={{ color: "var(--success)", margin: 0, fontSize: 12 }}
           >
             {summary}
           </p>
@@ -316,7 +316,7 @@ export function SSOConfigForm({
 
       {initial && initial.enabled ? (
         <section className="card card-pad-lg">
-          <h2 style={{ marginBottom: 8 }}>Sign-in URL</h2>
+          <h2 style={{ marginBottom: 8, fontSize: 14.5 }}>Sign-in URL</h2>
           <p
             style={{
               color: "var(--text-2)",
@@ -333,9 +333,10 @@ export function SSOConfigForm({
             className="mono"
             style={{
               margin: 0,
-              padding: 10,
+              padding: "10px 14px",
               background: "var(--surface-2)",
-              borderRadius: 6,
+              border: "1px solid var(--border-soft)",
+              borderRadius: "var(--r-4)",
               fontSize: 12,
               wordBreak: "break-all",
               whiteSpace: "pre-wrap",
@@ -374,26 +375,10 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label style={{ display: "grid", gap: 4 }}>
-      <span
-        style={{
-          fontSize: 11,
-          color: "var(--text-3)",
-          textTransform: "uppercase",
-          letterSpacing: 0.4,
-        }}
-      >
-        {label}
-      </span>
+    <label className="field">
+      <span className="field-label">{label}</span>
       {children}
-      {hint ? (
-        <span
-          className="mono"
-          style={{ fontSize: 11, color: "var(--text-3)" }}
-        >
-          {hint}
-        </span>
-      ) : null}
+      {hint ? <span className="field-hint">{hint}</span> : null}
     </label>
   );
 }

@@ -460,7 +460,7 @@ function SaveCurrentViewButton({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(10,10,10,0.40)",
+        background: "var(--scrim)",
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
@@ -472,7 +472,7 @@ function SaveCurrentViewButton({
       }}
     >
       <div
-        className="card card-pad-lg"
+        className="card-elevated card-pad-lg"
         style={{ width: "min(480px, 100%)", display: "grid", gap: 12 }}
       >
         <header
@@ -482,7 +482,16 @@ function SaveCurrentViewButton({
             justifyContent: "space-between",
           }}
         >
-          <h2 style={{ margin: 0 }}>Save view</h2>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 18,
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            Save view
+          </h2>
           <button type="button" className="btn btn-ghost" onClick={reset}>
             cancel
           </button>
@@ -575,7 +584,7 @@ function FilterSummary({ filters }: { filters: SavedViewFilters }) {
         margin: 0,
         background: "var(--surface-2)",
         padding: 10,
-        borderRadius: 6,
+        borderRadius: "var(--r-4)",
         fontSize: 12,
         whiteSpace: "pre-wrap",
       }}

@@ -186,7 +186,7 @@ export function NewAlertRuleButton({ projectId }: { projectId: string }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(10,10,10,0.40)",
+        background: "var(--scrim)",
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
@@ -198,7 +198,7 @@ export function NewAlertRuleButton({ projectId }: { projectId: string }) {
       }}
     >
       <div
-        className="card card-pad-lg"
+        className="card-elevated card-pad-lg"
         style={{ width: "min(620px, 100%)", display: "grid", gap: 12 }}
       >
         <header
@@ -208,13 +208,23 @@ export function NewAlertRuleButton({ projectId }: { projectId: string }) {
             justifyContent: "space-between",
           }}
         >
-          <h2 style={{ margin: 0 }}>New alert rule</h2>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 18,
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            New alert rule
+          </h2>
           <button type="button" className="btn btn-ghost" onClick={reset}>
             cancel
           </button>
         </header>
         <Field label="Name" hint="shows up in history + Slack message later">
           <input
+            type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. checkout error spike"
@@ -234,6 +244,7 @@ export function NewAlertRuleButton({ projectId }: { projectId: string }) {
           </Field>
           <Field label="Window seconds" hint="60–86400">
             <input
+              type="text"
               value={windowSeconds}
               onChange={(e) => setWindowSeconds(e.target.value)}
               inputMode="numeric"
@@ -258,6 +269,7 @@ export function NewAlertRuleButton({ projectId }: { projectId: string }) {
           </Field>
           <Field label="Threshold" hint="value the metric is compared against">
             <input
+              type="text"
               value={threshold}
               onChange={(e) => setThreshold(e.target.value)}
               inputMode="decimal"
@@ -282,6 +294,7 @@ export function NewAlertRuleButton({ projectId }: { projectId: string }) {
           </Field>
           <Field label="Route target (optional)">
             <input
+              type="text"
               value={routeTarget}
               onChange={(e) => setRouteTarget(e.target.value)}
               placeholder="#oncall  /  team-key  /  https://…"
@@ -289,10 +302,7 @@ export function NewAlertRuleButton({ projectId }: { projectId: string }) {
           </Field>
         </div>
         {error ? (
-          <p
-            className="mono"
-            style={{ color: "var(--danger)", margin: 0, fontSize: 12 }}
-          >
+          <p className="field-error" style={{ margin: 0 }}>
             {error}
           </p>
         ) : null}
@@ -412,26 +422,10 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label style={{ display: "grid", gap: 4 }}>
-      <span
-        style={{
-          fontSize: 11,
-          color: "var(--text-3)",
-          textTransform: "uppercase",
-          letterSpacing: 0.4,
-        }}
-      >
-        {label}
-      </span>
+    <label className="field">
+      <span className="field-label">{label}</span>
       {children}
-      {hint ? (
-        <span
-          className="mono"
-          style={{ fontSize: 11, color: "var(--text-3)" }}
-        >
-          {hint}
-        </span>
-      ) : null}
+      {hint ? <span className="field-hint">{hint}</span> : null}
     </label>
   );
 }
