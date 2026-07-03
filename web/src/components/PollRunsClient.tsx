@@ -164,7 +164,7 @@ export function NewPollRunButton({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(10,10,10,0.40)",
+        background: "var(--scrim)",
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
@@ -176,7 +176,7 @@ export function NewPollRunButton({
       }}
     >
       <div
-        className="card card-pad-lg"
+        className="card-elevated card-pad-lg"
         style={{ width: "min(640px, 100%)", display: "grid", gap: 12 }}
       >
         <header
@@ -186,7 +186,16 @@ export function NewPollRunButton({
             justifyContent: "space-between",
           }}
         >
-          <h2 style={{ margin: 0 }}>New PoLL run</h2>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 18,
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            New PoLL run
+          </h2>
           <button type="button" className="btn btn-ghost" onClick={reset}>
             cancel
           </button>
@@ -244,12 +253,14 @@ export function NewPollRunButton({
                       onChange={() => toggleJudge(j.value)}
                       style={{ accentColor: "var(--accent)" }}
                     />
-                    <span style={{ fontWeight: 500 }}>{j.label}</span>
+                    <span
+                      className="mono"
+                      style={{ fontWeight: 600 }}
+                    >
+                      {j.label}
+                    </span>
                   </span>
-                  <span
-                    className="mono"
-                    style={{ fontSize: 10, color: "var(--text-3)" }}
-                  >
+                  <span style={{ fontSize: 10.5, color: "var(--text-4)" }}>
                     {j.hint}
                   </span>
                 </label>
@@ -270,10 +281,7 @@ export function NewPollRunButton({
           </select>
         </Field>
         {error ? (
-          <p
-            className="mono"
-            style={{ color: "var(--danger)", margin: 0, fontSize: 12 }}
-          >
+          <p className="field-error" style={{ margin: 0 }}>
             {error}
           </p>
         ) : null}
@@ -310,26 +318,10 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label style={{ display: "grid", gap: 4 }}>
-      <span
-        style={{
-          fontSize: 11,
-          color: "var(--text-3)",
-          textTransform: "uppercase",
-          letterSpacing: 0.4,
-        }}
-      >
-        {label}
-      </span>
+    <label className="field">
+      <span className="field-label">{label}</span>
       {children}
-      {hint ? (
-        <span
-          className="mono"
-          style={{ fontSize: 11, color: "var(--text-3)" }}
-        >
-          {hint}
-        </span>
-      ) : null}
+      {hint ? <span className="field-hint">{hint}</span> : null}
     </label>
   );
 }

@@ -34,27 +34,24 @@ export function SavePromptForm({
       aria-label="Save as new prompt"
       style={{
         display: "grid",
-        gap: 8,
-        padding: 12,
+        gap: 12,
+        padding: 16,
         border: "1px solid var(--border)",
-        borderRadius: "var(--r-3)",
+        borderRadius: "var(--r-4)",
         background: "var(--surface-2)",
       }}
     >
-      <label style={{ display: "grid", gap: 4 }}>
-        <span style={{ fontSize: 11, color: "var(--text-3)" }}>Name</span>
+      <label className="field">
+        <span className="field-label">Name</span>
         <input
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="fraud-review"
-          style={{ padding: "6px 10px", fontSize: 13 }}
         />
       </label>
-      <label style={{ display: "grid", gap: 4 }}>
-        <span style={{ fontSize: 11, color: "var(--text-3)" }}>
-          Slug (auto from name)
-        </span>
+      <label className="field">
+        <span className="field-label">Slug</span>
         <input
           value={effectiveSlug}
           onChange={(e) => {
@@ -63,8 +60,8 @@ export function SavePromptForm({
           }}
           placeholder="fraud-review"
           className="mono"
-          style={{ padding: "6px 10px", fontSize: 12 }}
         />
+        <span className="field-hint">Auto from name</span>
       </label>
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <button

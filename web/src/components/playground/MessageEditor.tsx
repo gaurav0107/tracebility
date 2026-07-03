@@ -31,9 +31,9 @@ export function MessageEditor({
     <div
       style={{
         border: "1px solid var(--border)",
-        borderRadius: "var(--r-3)",
+        borderRadius: "var(--r-4)",
         overflow: "hidden",
-        background: "var(--surface)",
+        background: "var(--surface-sidebar)",
       }}
     >
       <div
@@ -56,10 +56,10 @@ export function MessageEditor({
         >
           <span
             style={{
-              fontSize: 10,
-              fontWeight: 600,
-              letterSpacing: 0.6,
-              color: "var(--text-3)",
+              fontSize: 10.5,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              color: "var(--text-4)",
               minWidth: 56,
             }}
           >
@@ -76,11 +76,9 @@ export function MessageEditor({
             }
             style={{
               fontSize: 12,
-              border: "1px solid var(--border)",
-              borderRadius: "var(--r-1)",
-              background: "var(--surface)",
+              width: "auto",
               color: "var(--text-2)",
-              padding: "2px 6px",
+              padding: "4px 14px",
               cursor: "pointer",
             }}
           >
@@ -132,12 +130,13 @@ export function MessageEditor({
         rows={Math.max(2, Math.min(12, message.content.split("\n").length + 1))}
         style={{
           width: "100%",
-          padding: 12,
+          padding: "12px 14px",
           border: 0,
+          borderRadius: 0,
           resize: "vertical",
           fontSize: 13,
           fontFamily: "inherit",
-          background: "var(--surface)",
+          background: "var(--surface-sidebar)",
           color: "var(--text)",
           boxSizing: "border-box",
           outline: "none",

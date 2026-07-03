@@ -102,7 +102,7 @@ export function AddItemButton({ datasetId }: { datasetId: string }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(10,10,10,0.40)",
+        background: "var(--scrim)",
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
@@ -114,7 +114,7 @@ export function AddItemButton({ datasetId }: { datasetId: string }) {
       }}
     >
       <div
-        className="card card-pad-lg"
+        className="card-elevated card-pad-lg"
         style={{ width: "min(640px, 100%)", display: "grid", gap: 12 }}
       >
         <header
@@ -124,7 +124,16 @@ export function AddItemButton({ datasetId }: { datasetId: string }) {
             justifyContent: "space-between",
           }}
         >
-          <h2 style={{ margin: 0 }}>Add dataset item</h2>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 18,
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            Add dataset item
+          </h2>
           <button type="button" className="btn btn-ghost" onClick={reset}>
             cancel
           </button>
@@ -166,10 +175,7 @@ export function AddItemButton({ datasetId }: { datasetId: string }) {
           />
         </Field>
         {error ? (
-          <p
-            className="mono"
-            style={{ color: "var(--danger)", margin: 0, fontSize: 12 }}
-          >
+          <p className="field-error" style={{ margin: 0 }}>
             {error}
           </p>
         ) : null}
@@ -244,26 +250,10 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label style={{ display: "grid", gap: 4 }}>
-      <span
-        style={{
-          fontSize: 11,
-          color: "var(--text-3)",
-          textTransform: "uppercase",
-          letterSpacing: 0.4,
-        }}
-      >
-        {label}
-      </span>
+    <label className="field">
+      <span className="field-label">{label}</span>
       {children}
-      {hint ? (
-        <span
-          className="mono"
-          style={{ fontSize: 11, color: "var(--text-3)" }}
-        >
-          {hint}
-        </span>
-      ) : null}
+      {hint ? <span className="field-hint">{hint}</span> : null}
     </label>
   );
 }
