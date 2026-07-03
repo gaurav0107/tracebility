@@ -615,59 +615,111 @@ export function FilterBar({ projectId: _projectId }: { projectId: string }) {
     router.push(qs ? `/runs?${qs}` : "/runs");
   }
 
+  const hasFilter = Boolean(statusV || kindV || searchV.trim() || windowV);
+
   return (
     <form
       onSubmit={apply}
-      className="card"
       style={{
-        padding: 12,
-        display: "grid",
-        gridTemplateColumns: "1fr 160px 160px 160px auto",
-        gap: 8,
-        alignItems: "end",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        flexWrap: "wrap",
       }}
     >
-      <Field label="Search" hint="case-insensitive substring on run name">
+      <label
+        className="search-box"
+        style={{ flex: "1 1 300px", minWidth: 260, maxWidth: 440 }}
+      >
+        <span aria-hidden style={{ fontSize: 12, color: "var(--text-4)" }}>
+          ⌕
+        </span>
         <input
           value={searchV}
           onChange={(e) => setSearchV(e.target.value)}
-          placeholder="filter by name"
+          placeholder="name, id, or prompt…"
+          aria-label="Search runs"
         />
-      </Field>
-      <Field label="Status">
-        <select
-          value={statusV}
-          onChange={(e) => setStatusV(e.target.value)}
-        >
-          {STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Kind">
-        <select value={kindV} onChange={(e) => setKindV(e.target.value)}>
-          {KIND_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Window">
-        <select value={windowV} onChange={(e) => setWindowV(e.target.value)}>
-          {WINDOW_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <button type="submit" className="btn btn-primary" style={{ fontSize: 12 }}>
+      </label>
+      <PillSelect
+        ariaLabel="Status"
+        value={statusV}
+        onChange={setStatusV}
+        options={STATUS_OPTIONS}
+      />
+      <PillSelect
+        ariaLabel="Kind"
+        value={kindV}
+        onChange={setKindV}
+        options={KIND_OPTIONS}
+      />
+      <PillSelect
+        ariaLabel="Window"
+        value={windowV}
+        onChange={setWindowV}
+        options={WINDOW_OPTIONS}
+      />
+      <button type="submit" className="btn btn-primary" style={{ height: 38 }}>
         Apply
       </button>
+      {hasFilter ? (
+        <button
+          type="button"
+          onClick={() => {
+            setStatusV("");
+            setKindV("");
+            setSearchV("");
+            setWindowV("");
+            router.push("/runs");
+          }}
+          style={{
+            background: "none",
+            border: 0,
+            cursor: "pointer",
+            fontFamily: "var(--f-sans)",
+            fontSize: 12,
+            fontWeight: 600,
+            color: "var(--text-4)",
+            padding: "0 6px",
+          }}
+        >
+          clear all
+        </button>
+      ) : null}
     </form>
+  );
+}
+
+// Compact pill-shaped <select> for the filter row — uses the shared input-shell
+// pill grammar (border, focus ring, ▾ caret) so it matches the new design.
+function PillSelect({
+  ariaLabel,
+  value,
+  onChange,
+  options,
+}: {
+  ariaLabel: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <span
+      className="input-shell input-shell-select"
+      style={{ flex: "0 0 auto", minWidth: 132 }}
+    >
+      <select
+        aria-label={ariaLabel}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </span>
   );
 }
 
