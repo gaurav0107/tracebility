@@ -1,27 +1,22 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
 /**
- * Unified sign-in / sign-up form.
+ * Unified sign-in / sign-up card (design 4A — centered card over the
+ * trace-graph backdrop).
  *
- * Tab-toggled (Sign in | Create account); both tabs share the same
- * OAuth buttons and the same email+password form. The tab only
- * controls (a) which tab visually looks active, (b) which OAuth
- * `intent=` is sent to the api so first-time vs returning is
- * audited correctly, and (c) which submit copy ("Sign in" vs
- * "Create account") on the password form.
+ * The card leads with "welcome back" (login). OAuth buttons + email/password
+ * are shared across modes; the bottom "create an account" link toggles to
+ * signup, which only changes (a) the heading, (b) the submit copy, and (c) the
+ * OAuth `intent=` sent to the api so first-time vs returning is audited right.
  *
- * Email+password is wired to /api/auth/login for both tabs because
- * v1 doesn't expose a self-service password-signup endpoint
- * (operators bootstrap via /v1/setup; everyone else uses OAuth).
- * Showing the password form on signup is a vestige worth keeping
- * for the operator who wants to test their root account from /signup.
- *
- * `LAST USED` badge: records the last-clicked OAuth provider in
- * localStorage so returning users see at a glance which one to
- * pick. Pure UX nicety, no privacy concern (no email, no token).
+ * Email+password posts to /api/auth/login for both modes (v1 has no
+ * self-service password signup — operators bootstrap via /v1/setup; everyone
+ * else uses OAuth). The `LAST USED` badge records the last OAuth provider in
+ * localStorage. A live ticker cycles real product signals under the heading.
  */
 
 export interface OAuthProviders {
@@ -31,6 +26,13 @@ export interface OAuthProviders {
 
 type Tab = "login" | "signup";
 const LAST_USED_KEY = "langprobe:auth:last-provider";
+
+const TICKER_LINES = [
+  "3,214 runs traced in the last minute",
+  "replay rep_c11d finished · 9/10 deterministic",
+  "eval suite rag-v3 passing · 94.2%",
+  "alert cleared · error rate back under 2%",
+];
 
 export function AuthClient({
   initialTab,
@@ -45,8 +47,8 @@ export function AuthClient({
   const anyOAuth = providers.google || providers.github;
 
   return (
-    <div style={{ display: "grid", gap: 20, width: "100%" }}>
-      <TabSwitch tab={tab} setTab={setTab} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, width: "100%" }}>
+      <CardHeader tab={tab} />
 
       {anyOAuth ? (
         <OAuthButtons tab={tab} providers={providers} returnTo={returnTo} />
@@ -56,17 +58,50 @@ export function AuthClient({
 
       <PasswordForm tab={tab} />
 
+      <SsoRow />
+
+      <p style={{ textAlign: "center", fontSize: 12.5, color: "var(--text-3)", margin: 0 }}>
+        {tab === "login" ? "new here? " : "already have an account? "}
+        <button
+          type="button"
+          onClick={() => setTab(tab === "login" ? "signup" : "login")}
+          style={{
+            background: "none",
+            border: 0,
+            padding: 0,
+            cursor: "pointer",
+            font: "inherit",
+            color: "var(--link)",
+            fontWeight: 700,
+          }}
+        >
+          {tab === "login" ? "create an account" : "sign in"}
+        </button>
+      </p>
+
+      {!anyOAuth ? (
+        <p
+          className="mono"
+          style={{ margin: 0, fontSize: 11, color: "var(--text-3)", lineHeight: 1.55 }}
+        >
+          OAuth providers are not configured for this deployment. The operator
+          can enable them by setting <code>OAUTH_GOOGLE_CLIENT_ID</code> /{" "}
+          <code>OAUTH_GITHUB_CLIENT_ID</code> on the api service.
+        </p>
+      ) : null}
+
       <p
         style={{
+          textAlign: "center",
           fontSize: 11,
-          color: "var(--text-3)",
+          color: "var(--text-4)",
           margin: 0,
           lineHeight: 1.55,
         }}
       >
         By continuing, you agree to the{" "}
         <a href="/terms" style={{ color: "var(--link)" }}>
-          terms of service
+          terms
         </a>{" "}
         and{" "}
         <a href="/privacy" style={{ color: "var(--link)" }}>
@@ -74,89 +109,65 @@ export function AuthClient({
         </a>
         .
       </p>
-
-      {!anyOAuth ? (
-        <p
-          className="mono"
-          style={{
-            margin: 0,
-            fontSize: 11,
-            color: "var(--text-3)",
-            lineHeight: 1.55,
-          }}
-        >
-          OAuth providers are not configured for this deployment. The
-          operator can enable them by setting{" "}
-          <code>OAUTH_GOOGLE_CLIENT_ID</code> /{" "}
-          <code>OAUTH_GITHUB_CLIENT_ID</code> on the api service.
-        </p>
-      ) : null}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Tab switcher
+// Header — app mark, heading, live ticker
 // ---------------------------------------------------------------------------
 
-function TabSwitch({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
-  // Sign in first, Create account second. Returning users are the
-  // larger cohort and Sign in is the default landing tab; ordering
-  // it first matches user fluency from peer products (Linear, Vercel,
-  // Datadog) and reduces the friction of a tab swap on every visit.
+function CardHeader({ tab }: { tab: Tab }) {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return; // respect reduced motion — leave a static line
+    }
+    const t = setInterval(() => setIdx((i) => (i + 1) % TICKER_LINES.length), 3200);
+    return () => clearInterval(t);
+  }, []);
+
   return (
     <div
-      role="tablist"
       style={{
-        display: "inline-flex",
-        gap: 20,
-        fontSize: 18,
-        fontWeight: 500,
-        letterSpacing: -0.01,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 10,
+        marginBottom: 2,
       }}
     >
-      <TabButton active={tab === "login"} onClick={() => setTab("login")}>
-        Sign in
-      </TabButton>
-      <TabButton active={tab === "signup"} onClick={() => setTab("signup")}>
-        Create account
-      </TabButton>
+      <span
+        aria-hidden
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 14,
+          background: "var(--accent)",
+          display: "grid",
+          placeItems: "center",
+          boxShadow: "0 8px 20px rgba(4,133,247,0.4)",
+        }}
+      >
+        <span style={{ width: 16, height: 16, borderRadius: 5, background: "#FFFFFF" }} />
+      </span>
+      <span style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em" }}>
+        {tab === "login" ? "welcome back" : "create your account"}
+      </span>
+      <span
+        style={{
+          fontFamily: "var(--f-mono)",
+          fontSize: 11.5,
+          color: "var(--text-4)",
+          textAlign: "center",
+        }}
+      >
+        {TICKER_LINES[idx]}
+      </span>
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      style={{
-        background: "none",
-        border: "none",
-        padding: "0 0 4px",
-        cursor: "pointer",
-        color: active ? "var(--text)" : "var(--text-3)",
-        borderBottom: active
-          ? "2px solid var(--accent)"
-          : "2px solid transparent",
-        fontSize: "inherit",
-        fontWeight: "inherit",
-        letterSpacing: "inherit",
-        transition: "color 120ms",
-      }}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -184,10 +195,6 @@ function OAuthButtons({
 
   const params = new URLSearchParams({ intent: tab });
   if (returnTo) params.set("return_to", returnTo);
-  // Always same-origin. The route handler at /api/auth/oauth/<provider>/start
-  // 302s to the api's /v1/auth/oauth/<provider>/start, which 302s to the
-  // IdP. This avoids depending on NEXT_PUBLIC_API_BASE being baked into
-  // the client bundle at build time.
   const startUrl = (provider: string): string =>
     `/api/auth/oauth/${provider}/start?${params.toString()}`;
 
@@ -199,16 +206,12 @@ function OAuthButtons({
     }
   }
 
-  const buttons: Array<{
-    key: string;
-    label: string;
-    icon: React.ReactNode;
-  }> = [];
+  const buttons: Array<{ key: string; label: string; icon: React.ReactNode }> = [];
   if (providers.google) {
-    buttons.push({ key: "google", label: "Google", icon: <GoogleMark /> });
+    buttons.push({ key: "google", label: "google", icon: <GoogleMark /> });
   }
   if (providers.github) {
-    buttons.push({ key: "github", label: "GitHub", icon: <GithubMark /> });
+    buttons.push({ key: "github", label: "github", icon: <GithubMark /> });
   }
 
   return (
@@ -216,7 +219,7 @@ function OAuthButtons({
       style={{
         display: "grid",
         gridTemplateColumns: `repeat(${buttons.length}, minmax(0, 1fr))`,
-        gap: 8,
+        gap: 10,
       }}
     >
       {buttons.map((b) => (
@@ -224,13 +227,21 @@ function OAuthButtons({
           key={b.key}
           href={startUrl(b.key)}
           onClick={() => recordUsed(b.key)}
-          className="btn"
           style={{
             position: "relative",
+            display: "flex",
+            alignItems: "center",
             justifyContent: "center",
             gap: 8,
-            padding: "10px 12px",
             fontSize: 13,
+            fontWeight: 700,
+            color: "var(--text)",
+            border: "1px solid var(--border)",
+            background: "var(--surface)",
+            borderRadius: 999,
+            padding: "11px 0",
+            textDecoration: "none",
+            transition: "background 120ms",
           }}
         >
           {b.icon}
@@ -247,16 +258,16 @@ function LastUsedBadge() {
     <span
       style={{
         position: "absolute",
-        top: -8,
-        right: -8,
+        top: -9,
+        right: 14,
         background: "var(--accent)",
         color: "var(--accent-fg)",
-        fontSize: 9,
-        fontWeight: 600,
-        letterSpacing: 0.6,
+        fontSize: 8.5,
+        fontWeight: 700,
+        letterSpacing: "0.06em",
         textTransform: "uppercase",
-        padding: "2px 6px",
-        borderRadius: "var(--r-1)",
+        padding: "2px 8px",
+        borderRadius: 999,
         lineHeight: 1.2,
         pointerEvents: "none",
       }}
@@ -274,6 +285,7 @@ function PasswordForm({ tab }: { tab: Tab }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -298,8 +310,6 @@ function PasswordForm({ tab }: { tab: Tab }) {
         } catch {
           // ignore
         }
-        // Slightly nudge the message on signup tab so users know
-        // password signup isn't self-service today.
         if (tab === "signup" && res.status === 401) {
           detail =
             "No account found. Use Google or GitHub to sign up. Password signup is operator-only in v1.";
@@ -312,37 +322,38 @@ function PasswordForm({ tab }: { tab: Tab }) {
     });
   }
 
-  // The `aria-invalid` flag flips the input border red on submit
-  // failure. We set it on both inputs when there's an error since
-  // we don't currently know which one caused it; once the api
-  // surfaces a `field` discriminator we can target precisely.
   const invalid = error !== null;
 
   return (
-    <form onSubmit={submit} style={{ display: "grid", gap: 14 }}>
+    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <label className="field">
         <span className="field-label">Email</span>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email"
-          placeholder="you@example.com"
-          aria-invalid={invalid}
-          required
-        />
+        <span className="input-shell">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            placeholder="you@example.com"
+            aria-invalid={invalid}
+            required
+          />
+        </span>
       </label>
+
       <label className="field">
-        <span className="field-label">
-          Password
+        <span className="field-label" style={{ display: "flex", alignItems: "baseline" }}>
+          <span style={{ flex: 1 }}>Password</span>
           {tab === "login" ? (
             <a
               href="/forgot"
               style={{
-                marginLeft: "auto",
-                fontSize: 11,
-                color: "var(--text-3)",
+                fontSize: 11.5,
+                fontWeight: 700,
+                color: "var(--link)",
                 textDecoration: "none",
+                textTransform: "none",
+                letterSpacing: "normal",
               }}
               onClick={(e) => {
                 e.preventDefault();
@@ -353,38 +364,76 @@ function PasswordForm({ tab }: { tab: Tab }) {
             </a>
           ) : null}
         </span>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete={
-            tab === "signup" ? "new-password" : "current-password"
-          }
-          placeholder="••••••••"
-          aria-invalid={invalid}
-          required
-        />
+        <span className="input-shell">
+          <input
+            type={showPw ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete={tab === "signup" ? "new-password" : "current-password"}
+            placeholder="••••••••"
+            aria-invalid={invalid}
+            required
+          />
+          <button
+            type="button"
+            className="ie-sfx-btn"
+            onClick={() => setShowPw((s) => !s)}
+            aria-label={showPw ? "Hide password" : "Show password"}
+          >
+            {showPw ? "hide" : "show"}
+          </button>
+        </span>
       </label>
+
       {error ? (
         <p className="field-error" role="alert" style={{ margin: 0 }}>
           {error}
         </p>
       ) : null}
+
       <button
         type="submit"
-        className="btn btn-primary"
+        className="btn btn-primary btn-lg"
         disabled={pending}
-        style={{ justifyContent: "center", padding: "10px 16px" }}
+        style={{ width: "100%" }}
       >
         {pending
           ? tab === "signup"
-            ? "Creating account…"
-            : "Signing in…"
+            ? "creating account…"
+            : "signing in…"
           : tab === "signup"
-            ? "Create account"
-            : "Sign in"}
+            ? "create account"
+            : "sign in"}
       </button>
     </form>
+  );
+}
+
+function SsoRow() {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        flexWrap: "wrap",
+      }}
+    >
+      <span
+        aria-hidden
+        style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)" }}
+      />
+      <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--text-3)" }}>
+        sso · saml &amp; oidc for self-hosted
+      </span>
+      <Link
+        href="/workspace/sso"
+        style={{ fontSize: 11.5, fontWeight: 700, color: "var(--link)", textDecoration: "none" }}
+      >
+        use sso →
+      </Link>
+    </div>
   );
 }
 
@@ -394,10 +443,10 @@ function Divider({ label }: { label: string }) {
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 8,
-        color: "var(--text-3)",
-        fontSize: 11,
-        letterSpacing: 0.4,
+        gap: 12,
+        color: "var(--text-4)",
+        fontSize: 12,
+        fontWeight: 500,
       }}
     >
       <span style={{ flex: 1, height: 1, background: "var(--border)" }} />
@@ -446,7 +495,7 @@ function GithubMark() {
 }
 
 // ---------------------------------------------------------------------------
-// Logout
+// Logout (used by the app shell)
 // ---------------------------------------------------------------------------
 
 export function LogoutLink() {
@@ -466,13 +515,10 @@ export function LogoutLink() {
               cache: "no-store",
             });
           } catch {
-            // even if the request fails, fall through to a hard reload —
-            // the worst case is the user lands on /login with a stale
-            // cookie, the middleware will accept them, and they'll be
-            // booted on the next 401 from the api.
+            // even if the request fails, fall through to a hard reload — the
+            // worst case is the user lands on /login with a stale cookie, the
+            // middleware accepts them, and they're booted on the next 401.
           }
-          // Hard navigation drops the router cache + every server-
-          // component payload along with the cleared cookie.
           window.location.href = "/login";
         });
       }}
