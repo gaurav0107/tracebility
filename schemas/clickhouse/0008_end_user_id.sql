@@ -10,8 +10,8 @@
 -- how run.metadata is stored — free-form per-end-user attributes (plan, region,
 -- cohort) the operator attaches at ingest.
 --
--- Root-run-only concern: only the top-level run carries end-user identity;
--- child spans inherit it via run_id. No span table change.
+-- Root-run-only concern: only the top-level run carries end-user identity.
+-- Child spans inherit it via run_id, so there is no span table change.
 
 alter table run add column if not exists end_user_id Nullable(String) after user_id;
 alter table run add column if not exists end_user_metadata String default '' after end_user_id;
