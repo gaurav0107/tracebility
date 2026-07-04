@@ -6,10 +6,11 @@ router and the MCP adapter both dispatch through this table instead of
 importing ``verbs.service`` functions directly, so the set of exposed
 verbs never drifts between the two surfaces.
 
-Verb logic itself is stubbed in this task (Task 1 already landed the
-lifecycle enums; later tasks fill in real behavior) — here we only
-assert the registry's shape and that every stub raises
-``NotImplementedError``.
+Verb logic is filled in incrementally (``cluster_failures`` in Task 3,
+``run_judge_over_cohort`` in Task 4); the rest still raise
+``NotImplementedError`` here — later tasks fill in the rest, and this
+suite only asserts the registry's shape plus that every remaining stub
+raises ``NotImplementedError``.
 """
 
 from __future__ import annotations
@@ -55,7 +56,11 @@ def test_registry_entries_are_callable(name):
 
 
 @pytest.mark.parametrize(
-    "name", sorted(EXPECTED_VERB_NAMES - {"langprobe.v1.cluster_failures"})
+    "name",
+    sorted(
+        EXPECTED_VERB_NAMES
+        - {"langprobe.v1.cluster_failures", "langprobe.v1.run_judge_over_cohort"}
+    ),
 )
 async def test_registry_stub_raises_not_implemented(name):
     fn = VERB_REGISTRY[name]
