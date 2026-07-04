@@ -1,14 +1,16 @@
 /**
  * Sign-in backdrop (design 4A — "trace-graph backdrop").
  *
- * Pure-CSS decorative scene behind the centered auth card: a faint grid, a
- * soft blue glow at top-center, and a converging trace graph — three source
- * nodes on the left (sdk / otel / shim) whose signals travel inward and three
- * outcome nodes on the right (evals / replays / alerts) exiting. Every dot is
- * a CSS animation; nothing here is interactive, so it stays a server component.
+ * A faint grid, a soft blue glow at top-center, and a converging trace graph:
+ * three source nodes on the left (sdk / otel / shim) whose signals flow inward
+ * toward the card, and three outcome nodes on the right (evals / replays /
+ * alerts) whose signals exit outward. The whole thing reads left→right: data
+ * enters from the left, passes through langprobe (the card), and exits right.
  *
- * The graph (`.lg-graph`) is hidden under 1100px so it never crowds the card
- * on narrow viewports — the grid + glow carry the atmosphere there. The global
+ * Every traveling dot is a CSS animation. Path length + travel are expressed in
+ * viewport units (`50vw - 300px`) so the lines reach toward the centered card
+ * at any resolution instead of floating as short stubs on wide displays. The
+ * graph hides under 1100px so it never crowds the card; the global
  * prefers-reduced-motion rule in globals.css zeroes every animation.
  */
 
@@ -16,53 +18,58 @@ import type { CSSProperties } from "react";
 
 type Node = {
   side: "left" | "right";
-  top: string;
+  nodeTop: string; // node-dot vertical anchor
+  pathTop: string; // path vertical anchor (~16px below the dot, per design)
+  rot: number; // path tilt, exact design value
+  dur: string;
+  delay: string;
   label: string;
   meta: string;
+  dot: string; // node pulse-dot colour
   fg: string;
   bg: string;
   border: string;
-  dot: string;
   glow: string;
-  rot: number; // path tilt in degrees
-  dur: string;
-  delay: string;
 };
+
+// Path length + dot travel scale with the viewport so the fan reaches the card
+// at any width (floored so it never collapses on the narrowest supported size).
+const PATH_W = "max(200px, calc(50vw - 300px))";
+const TRAVEL = "max(180px, calc(50vw - 322px))";
+const BLUE_LINE = "rgba(4,133,247,0.22)";
 
 const NODES: Node[] = [
   {
-    side: "left", top: "22%", label: "sdk · python", meta: "3.2k runs/min",
-    fg: "#0A66C2", bg: "rgba(4,133,247,0.06)", border: "rgba(4,133,247,0.25)",
-    dot: "#0485F7", glow: "rgba(4,133,247,0.8)", rot: 14, dur: "4.4s", delay: "0s",
+    side: "left", nodeTop: "20%", pathTop: "calc(20% + 16px)", rot: 14, dur: "4.4s", delay: "0s",
+    label: "sdk · python", meta: "3.2k runs/min",
+    dot: "#0485F7", fg: "#0A66C2", bg: "rgba(4,133,247,0.06)", border: "rgba(4,133,247,0.25)", glow: "rgba(4,133,247,0.8)",
   },
   {
-    side: "left", top: "50%", label: "otel · collector", meta: "1.8k spans/s",
-    fg: "#0A66C2", bg: "rgba(4,133,247,0.06)", border: "rgba(4,133,247,0.25)",
-    dot: "#0485F7", glow: "rgba(4,133,247,0.8)", rot: 0, dur: "5.2s", delay: "1.3s",
+    side: "left", nodeTop: "47%", pathTop: "calc(47% + 16px)", rot: 0, dur: "5.2s", delay: "1.3s",
+    label: "otel · collector", meta: "1.8k spans/s",
+    dot: "#0485F7", fg: "#0A66C2", bg: "rgba(4,133,247,0.06)", border: "rgba(4,133,247,0.25)", glow: "rgba(4,133,247,0.8)",
   },
   {
-    side: "left", top: "78%", label: "shim · langsmith", meta: "640 runs/min",
-    fg: "#0A66C2", bg: "rgba(4,133,247,0.06)", border: "rgba(4,133,247,0.25)",
-    dot: "#0485F7", glow: "rgba(4,133,247,0.8)", rot: -14, dur: "4.8s", delay: "2.6s",
+    side: "left", nodeTop: "72%", pathTop: "calc(72% + 16px)", rot: -14, dur: "4.8s", delay: "2.6s",
+    label: "shim · langsmith", meta: "640 runs/min",
+    dot: "#0485F7", fg: "#0A66C2", bg: "rgba(4,133,247,0.06)", border: "rgba(4,133,247,0.25)", glow: "rgba(4,133,247,0.8)",
   },
   {
-    side: "right", top: "22%", label: "evals · passing", meta: "94.2%",
-    fg: "#157A45", bg: "#E7F4ED", border: "rgba(21,122,69,0.28)",
-    dot: "#157A45", glow: "rgba(21,122,69,0.7)", rot: -14, dur: "4.6s", delay: "0.8s",
+    side: "right", nodeTop: "20%", pathTop: "calc(20% + 16px)", rot: -14, dur: "4.6s", delay: "0.8s",
+    label: "evals · passing", meta: "94.2%",
+    dot: "#157A45", fg: "#157A45", bg: "#E7F4ED", border: "rgba(21,122,69,0.28)", glow: "rgba(21,122,69,0.7)",
   },
   {
-    side: "right", top: "50%", label: "replays · exact", meta: "12/min",
-    fg: "#0A66C2", bg: "rgba(4,133,247,0.06)", border: "rgba(4,133,247,0.25)",
-    dot: "#0485F7", glow: "rgba(4,133,247,0.8)", rot: 0, dur: "5.6s", delay: "2s",
+    side: "right", nodeTop: "47%", pathTop: "calc(47% + 16px)", rot: 0, dur: "5.6s", delay: "2s",
+    label: "replays · exact", meta: "12/min",
+    dot: "#0485F7", fg: "#0A66C2", bg: "rgba(4,133,247,0.06)", border: "rgba(4,133,247,0.25)", glow: "rgba(4,133,247,0.8)",
   },
   {
-    side: "right", top: "78%", label: "alerts · 2 firing", meta: "err > 2%",
-    fg: "#C0382B", bg: "#FBEAE7", border: "rgba(192,56,43,0.25)",
-    dot: "#C0382B", glow: "rgba(192,56,43,0.6)", rot: 14, dur: "5s", delay: "3.4s",
+    side: "right", nodeTop: "72%", pathTop: "calc(72% + 16px)", rot: 14, dur: "5s", delay: "3.4s",
+    label: "alerts · 2 firing", meta: "err > 2%",
+    dot: "#C0382B", fg: "#C0382B", bg: "#FBEAE7", border: "rgba(192,56,43,0.25)", glow: "rgba(192,56,43,0.6)",
   },
 ];
-
-const PATH_W = 300;
 
 export function LoginBackdrop() {
   return (
@@ -88,7 +95,7 @@ export function LoginBackdrop() {
       <div
         style={{
           position: "absolute",
-          top: "-360px",
+          top: "-300px",
           left: "50%",
           width: "1300px",
           maxWidth: "120vw",
@@ -101,54 +108,53 @@ export function LoginBackdrop() {
 
       <div className="lg-graph">
         {NODES.map((n, i) => {
-          const edge = n.side === "left" ? { left: "3.5%" } : { right: "3.5%" };
-          const pathEdge =
-            n.side === "left" ? { left: "calc(3.5% + 8px)" } : { right: "calc(3.5% + 8px)" };
-          const gradient =
-            n.side === "left"
-              ? `linear-gradient(90deg, transparent, ${n.dot === "#0485F7" ? "rgba(4,133,247,0.22)" : n.border})`
-              : `linear-gradient(90deg, ${n.dot === "#0485F7" ? "rgba(4,133,247,0.22)" : n.border}, transparent)`;
-          const travel = n.side === "left" ? PATH_W - 28 : -(PATH_W - 28);
+          const anchor = n.side === "left" ? "left" : "right";
           return (
             <div key={i}>
-              {/* path */}
+              {/* path — anchored at the node edge, extending inward toward the card */}
               <div
                 style={{
                   position: "absolute",
-                  ...pathEdge,
-                  top: n.top,
-                  width: `${PATH_W}px`,
+                  [anchor]: "calc(2.6vw + 2px)",
+                  top: n.pathTop,
+                  width: PATH_W,
                   height: "2px",
-                  background: gradient,
-                  transform: `rotate(${n.side === "left" ? n.rot : -n.rot}deg)`,
+                  background:
+                    n.side === "left"
+                      ? `linear-gradient(90deg, transparent, ${BLUE_LINE})`
+                      : `linear-gradient(90deg, ${BLUE_LINE}, transparent)`,
+                  transform: `rotate(${n.rot}deg)`,
                   transformOrigin: n.side === "left" ? "left center" : "right center",
                 }}
               >
+                {/* traveling dot — always starts at left:0 and moves right; on the
+                    left that is inward (converging), on the right it is outward
+                    (exiting, since the right path is anchored to the right edge). */}
                 <div
                   style={
                     {
                       position: "absolute",
-                      left: n.side === "left" ? 0 : "auto",
-                      right: n.side === "right" ? 0 : "auto",
+                      left: 0,
                       top: "-2px",
                       width: 6,
                       height: 6,
                       borderRadius: 999,
-                      background: n.dot,
-                      boxShadow: `0 0 10px ${n.glow}`,
+                      background: "#0485F7",
+                      boxShadow: "0 0 10px rgba(4,133,247,0.8)",
                       animation: `lg-tx ${n.dur} linear infinite ${n.delay}`,
-                      "--d": `${travel}px`,
+                      "--d": TRAVEL,
                     } as CSSProperties
                   }
                 />
               </div>
+
               {/* node + label */}
               <div
                 style={{
                   position: "absolute",
-                  ...edge,
-                  top: n.top,
-                  transform: `translate(${n.side === "left" ? "-50%" : "50%"}, -50%)`,
+                  [anchor]: "2.6vw",
+                  top: n.nodeTop,
+                  transform: `translateX(${n.side === "left" ? "-50%" : "50%"})`,
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
@@ -181,13 +187,7 @@ export function LoginBackdrop() {
                 >
                   {n.label}
                 </span>
-                <span
-                  style={{
-                    fontFamily: "var(--f-mono)",
-                    fontSize: 10,
-                    color: "var(--text-4)",
-                  }}
-                >
+                <span style={{ fontFamily: "var(--f-mono)", fontSize: 10, color: "var(--text-4)" }}>
                   {n.meta}
                 </span>
               </div>
