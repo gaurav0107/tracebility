@@ -17,8 +17,11 @@ from uuid import UUID
 
 from .diff import ReplayDiff
 
-# Pinned to schemas/clickhouse/0003_replay_captures.sql `replay_run`.
+# Pinned to schemas/clickhouse/0003_replay_captures.sql `replay_run`, plus the
+# org_id/workspace_id tenant columns added in 0006_tenant_columns.sql.
 REPLAY_RUN_COLUMNS: tuple[str, ...] = (
+    "org_id",
+    "workspace_id",
     "project_id",
     "replay_run_id",
     "original_run_id",
@@ -45,6 +48,8 @@ def _notes(diff: ReplayDiff) -> str:
 def build_replay_run_row(
     diff: ReplayDiff,
     *,
+    org_id: UUID,
+    workspace_id: UUID,
     project_id: UUID,
     replay_run_id: UUID,
     original_run_id: UUID,
@@ -53,6 +58,8 @@ def build_replay_run_row(
 ) -> tuple[Any, ...]:
     """Build the ``replay_run`` row tuple (order = ``REPLAY_RUN_COLUMNS``)."""
     return (
+        str(org_id),
+        str(workspace_id),
         str(project_id),
         str(replay_run_id),
         str(original_run_id),

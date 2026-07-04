@@ -38,6 +38,7 @@ from pydantic import BaseModel, Field
 from .. import audit
 from ..auth import Principal, assert_workspace_role, require_user
 from ..clickhouse_client import ClickHouseQuery
+from ..tenant_scope import resolve_tenant_ids
 from . import luna_judges
 from .evals import _judge  # reuse the built-in deterministic judge bench
 
@@ -332,6 +333,7 @@ async def _run_poll(
         )
         if poll is None:
             return
+        org_id, workspace_id = await resolve_tenant_ids(pool, poll["project_id"])
 
         judges: list[str] = list(poll["judges"])
         aggregation: str = poll["aggregation"]
@@ -391,6 +393,8 @@ async def _run_poll(
                 scores_for_item.append((judge, score))
                 rows.append(
                     (
+                        str(org_id),
+                        str(workspace_id),
                         str(poll["project_id"]),
                         str(item["item_id"]),  # carry item_id in run_id slot
                         None,  # span_id
@@ -415,6 +419,8 @@ async def _run_poll(
                     "eval_score",
                     rows,
                     column_names=[
+                        "org_id",
+                        "workspace_id",
                         "project_id",
                         "run_id",
                         "span_id",
