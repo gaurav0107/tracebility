@@ -23,6 +23,7 @@ type Node = {
   rot: number; // path tilt, exact design value
   dur: string;
   delay: string;
+  float: string; // gentle bob duration for the floating tag
   label: string;
   meta: string;
   dot: string; // node pulse-dot colour
@@ -32,40 +33,44 @@ type Node = {
   glow: string;
 };
 
-// Path length + dot travel scale with the viewport so the fan reaches the card
-// at any width (floored so it never collapses on the narrowest supported size).
-const PATH_W = "max(200px, calc(50vw - 300px))";
-const TRAVEL = "max(180px, calc(50vw - 322px))";
+// Tags sit a resolution-aware distance from the edge: it grows with the
+// viewport but is floored (so the pill never clips off-screen on narrower /
+// Mac displays) and capped (so it doesn't drift too far in on ultrawide).
+const EDGE = "clamp(110px, 5.5vw, 170px)";
+// Path length + dot travel are derived so the fan always ends ~60px before the
+// centered card (card half-width 212px) regardless of resolution.
+const PATH_W = `max(150px, calc(50vw - 272px - ${EDGE}))`;
+const TRAVEL = `max(130px, calc(50vw - 292px - ${EDGE}))`;
 const BLUE_LINE = "rgba(4,133,247,0.22)";
 
 const NODES: Node[] = [
   {
-    side: "left", nodeTop: "20%", pathTop: "calc(20% + 16px)", rot: 14, dur: "4.4s", delay: "0s",
+    side: "left", nodeTop: "20%", pathTop: "calc(20% + 16px)", rot: 14, dur: "4.4s", delay: "0s", float: "6.5s",
     label: "sdk · python", meta: "3.2k runs/min",
     dot: "#0485F7", fg: "#0A66C2", bg: "rgba(4,133,247,0.06)", border: "rgba(4,133,247,0.25)", glow: "rgba(4,133,247,0.8)",
   },
   {
-    side: "left", nodeTop: "47%", pathTop: "calc(47% + 16px)", rot: 0, dur: "5.2s", delay: "1.3s",
+    side: "left", nodeTop: "47%", pathTop: "calc(47% + 16px)", rot: 0, dur: "5.2s", delay: "1.3s", float: "7.4s",
     label: "otel · collector", meta: "1.8k spans/s",
     dot: "#0485F7", fg: "#0A66C2", bg: "rgba(4,133,247,0.06)", border: "rgba(4,133,247,0.25)", glow: "rgba(4,133,247,0.8)",
   },
   {
-    side: "left", nodeTop: "72%", pathTop: "calc(72% + 16px)", rot: -14, dur: "4.8s", delay: "2.6s",
+    side: "left", nodeTop: "72%", pathTop: "calc(72% + 16px)", rot: -14, dur: "4.8s", delay: "2.6s", float: "6.1s",
     label: "shim · langsmith", meta: "640 runs/min",
     dot: "#0485F7", fg: "#0A66C2", bg: "rgba(4,133,247,0.06)", border: "rgba(4,133,247,0.25)", glow: "rgba(4,133,247,0.8)",
   },
   {
-    side: "right", nodeTop: "20%", pathTop: "calc(20% + 16px)", rot: -14, dur: "4.6s", delay: "0.8s",
+    side: "right", nodeTop: "20%", pathTop: "calc(20% + 16px)", rot: -14, dur: "4.6s", delay: "0.8s", float: "7s",
     label: "evals · passing", meta: "94.2%",
     dot: "#157A45", fg: "#157A45", bg: "#E7F4ED", border: "rgba(21,122,69,0.28)", glow: "rgba(21,122,69,0.7)",
   },
   {
-    side: "right", nodeTop: "47%", pathTop: "calc(47% + 16px)", rot: 0, dur: "5.6s", delay: "2s",
+    side: "right", nodeTop: "47%", pathTop: "calc(47% + 16px)", rot: 0, dur: "5.6s", delay: "2s", float: "6.8s",
     label: "replays · exact", meta: "12/min",
     dot: "#0485F7", fg: "#0A66C2", bg: "rgba(4,133,247,0.06)", border: "rgba(4,133,247,0.25)", glow: "rgba(4,133,247,0.8)",
   },
   {
-    side: "right", nodeTop: "72%", pathTop: "calc(72% + 16px)", rot: 14, dur: "5s", delay: "3.4s",
+    side: "right", nodeTop: "72%", pathTop: "calc(72% + 16px)", rot: 14, dur: "5s", delay: "3.4s", float: "7.6s",
     label: "alerts · 2 firing", meta: "err > 2%",
     dot: "#C0382B", fg: "#C0382B", bg: "#FBEAE7", border: "rgba(192,56,43,0.25)", glow: "rgba(192,56,43,0.6)",
   },
@@ -77,6 +82,7 @@ export function LoginBackdrop() {
       <style>{`
         @keyframes lg-tx { 0% { transform: translateX(0); opacity: 0; } 10% { opacity: 1; } 88% { opacity: 1; } 100% { transform: translateX(var(--d, 200px)); opacity: 0; } }
         @keyframes lg-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+        @keyframes lg-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
         .lg-graph { display: none; }
         @media (min-width: 1100px) { .lg-graph { display: block; } }
       `}</style>
@@ -115,7 +121,7 @@ export function LoginBackdrop() {
               <div
                 style={{
                   position: "absolute",
-                  [anchor]: "calc(2.6vw + 2px)",
+                  [anchor]: EDGE,
                   top: n.pathTop,
                   width: PATH_W,
                   height: "2px",
@@ -148,19 +154,24 @@ export function LoginBackdrop() {
                 />
               </div>
 
-              {/* node + label */}
+              {/* node + label — gently floating */}
               <div
                 style={{
                   position: "absolute",
-                  [anchor]: "2.6vw",
+                  [anchor]: EDGE,
                   top: n.nodeTop,
                   transform: `translateX(${n.side === "left" ? "-50%" : "50%"})`,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 6,
                 }}
               >
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 6,
+                    animation: `lg-float ${n.float} ease-in-out infinite ${n.delay}`,
+                  }}
+                >
                 <span
                   style={{
                     width: 10,
@@ -190,6 +201,7 @@ export function LoginBackdrop() {
                 <span style={{ fontFamily: "var(--f-mono)", fontSize: 10, color: "var(--text-4)" }}>
                   {n.meta}
                 </span>
+                </div>
               </div>
             </div>
           );
