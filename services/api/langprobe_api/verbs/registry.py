@@ -17,8 +17,9 @@ from typing import Any
 from langprobe_tenant.context import TenantContext
 
 from langprobe_api.verbs import service
+from langprobe_api.verbs.deps import VerbDeps
 
-VERB_REGISTRY: dict[str, Callable[[TenantContext, Any], Awaitable[Any]]] = {
+VERB_REGISTRY: dict[str, Callable[[VerbDeps, TenantContext, Any], Awaitable[Any]]] = {
     "langprobe.v1.cluster_failures": service.cluster_failures,
     "langprobe.v1.propose_eval": service.propose_eval,
     "langprobe.v1.run_judge_over_cohort": service.run_judge_over_cohort,

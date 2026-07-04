@@ -18,6 +18,7 @@ import inspect
 from uuid import uuid4
 
 import pytest
+from langprobe_api.verbs.deps import VerbDeps
 from langprobe_api.verbs.registry import VERB_REGISTRY
 from langprobe_tenant.context import TenantContext
 
@@ -53,12 +54,15 @@ def test_registry_entries_are_callable(name):
     assert callable(VERB_REGISTRY[name])
 
 
-@pytest.mark.parametrize("name", sorted(EXPECTED_VERB_NAMES))
+@pytest.mark.parametrize(
+    "name", sorted(EXPECTED_VERB_NAMES - {"langprobe.v1.cluster_failures"})
+)
 async def test_registry_stub_raises_not_implemented(name):
     fn = VERB_REGISTRY[name]
     ctx = _make_ctx()
+    deps = VerbDeps(pool=None, ch=None)
 
     with pytest.raises(NotImplementedError):
-        result = fn(ctx, None)
+        result = fn(deps, ctx, None)
         if inspect.isawaitable(result):
             await result
