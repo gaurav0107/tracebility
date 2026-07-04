@@ -96,3 +96,39 @@ class WatchOut(BaseModel):
     caught: int | None
     missed: int | None
     error: str | None
+
+
+# --- HTTP route request models (Task 7) -------------------------------------
+#
+# `BacktestIn`/`PromoteIn`/`WatchIn` above carry no `project_id` (the verb
+# resolves it indirectly, via the draft/run row they reference). The HTTP
+# router still needs a `project_id` up front to scope-check the caller
+# *before* touching any data, so these route-only request models bundle it
+# alongside the verb's own params. `cluster_failures`/`propose_eval` need no
+# equivalent — `ClusterFailuresIn`/`ProposeEvalIn` already carry `project_id`.
+
+
+class BacktestRequest(BaseModel):
+    project_id: UUID
+    draft_id: UUID
+    window_hours: int
+
+    def to_verb_params(self) -> BacktestIn:
+        return BacktestIn(draft_id=self.draft_id, window_hours=self.window_hours)
+
+
+class PromoteRequest(BaseModel):
+    project_id: UUID
+    draft_id: UUID
+    approval_token: str
+
+    def to_verb_params(self) -> PromoteIn:
+        return PromoteIn(draft_id=self.draft_id, approval_token=self.approval_token)
+
+
+class WatchRequest(BaseModel):
+    project_id: UUID
+    target_id: UUID
+
+    def to_verb_params(self) -> WatchIn:
+        return WatchIn(target_id=self.target_id)

@@ -45,6 +45,7 @@ from .routers import (
     scim,
     studio,
     threads_query,
+    verbs,
     workspaces_me,
 )
 from .routers import (
@@ -168,6 +169,7 @@ def create_app() -> FastAPI:
     app.include_router(run_actions.router)
     app.include_router(luna_judges.router)
     app.include_router(llm_credentials.router)
+    app.include_router(verbs.router)
     app.include_router(sso_router.router)
     app.include_router(oauth_signup.router)
     app.include_router(scim.router)
