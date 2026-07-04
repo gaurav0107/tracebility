@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from langprobe_api.verbs.lifecycle import BacktestStatus, DraftStatus
 
@@ -42,7 +42,14 @@ class ClusterFailuresOut(BaseModel):
 
 
 class ProposeEvalIn(BaseModel):
-    cluster_id: UUID
+    # Clusters are NOT persisted (cluster_failures is a read-only triage
+    # view over ClickHouse) — there is no `cluster_id` to look back up.
+    # The caller instead passes back the sample_run_ids + group_key it
+    # got from a `Cluster` in `ClusterFailuresOut`, making this verb
+    # stateless.
+    project_id: UUID
+    sample_run_ids: list[UUID] = Field(min_length=1, max_length=20)
+    group_key: str
 
 
 class EvalDraftOut(BaseModel):

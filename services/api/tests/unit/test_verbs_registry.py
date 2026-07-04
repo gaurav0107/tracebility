@@ -7,10 +7,10 @@ importing ``verbs.service`` functions directly, so the set of exposed
 verbs never drifts between the two surfaces.
 
 Verb logic is filled in incrementally (``cluster_failures`` in Task 3,
-``run_judge_over_cohort`` in Task 4); the rest still raise
-``NotImplementedError`` here — later tasks fill in the rest, and this
-suite only asserts the registry's shape plus that every remaining stub
-raises ``NotImplementedError``.
+``run_judge_over_cohort`` in Task 4, ``propose_eval`` in Task 5); the
+rest still raise ``NotImplementedError`` here — later tasks fill in the
+rest, and this suite only asserts the registry's shape plus that every
+remaining stub raises ``NotImplementedError``.
 """
 
 from __future__ import annotations
@@ -59,7 +59,11 @@ def test_registry_entries_are_callable(name):
     "name",
     sorted(
         EXPECTED_VERB_NAMES
-        - {"langprobe.v1.cluster_failures", "langprobe.v1.run_judge_over_cohort"}
+        - {
+            "langprobe.v1.cluster_failures",
+            "langprobe.v1.run_judge_over_cohort",
+            "langprobe.v1.propose_eval",
+        }
     ),
 )
 async def test_registry_stub_raises_not_implemented(name):

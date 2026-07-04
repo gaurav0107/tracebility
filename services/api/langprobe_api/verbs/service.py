@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from langprobe_tenant.context import TenantContext
 
-from langprobe_api.verbs import backtest, cluster
+from langprobe_api.verbs import backtest, cluster, propose
 from langprobe_api.verbs.deps import VerbDeps
 from langprobe_api.verbs.models import (
     BacktestIn,
@@ -41,7 +41,7 @@ async def cluster_failures(
 
 
 async def propose_eval(deps: VerbDeps, ctx: TenantContext, params: ProposeEvalIn) -> EvalDraftOut:
-    raise NotImplementedError("langprobe.v1.propose_eval — implemented in a later task")
+    return await propose.propose_eval(deps, ctx, params)
 
 
 async def run_judge_over_cohort(
