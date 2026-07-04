@@ -1,27 +1,20 @@
 import Link from "next/link";
 import { AuthClient, type OAuthProviders } from "@/components/AuthClient";
-import { LoginScene } from "@/components/LoginScene";
+import { LoginBackdrop } from "@/components/LoginBackdrop";
 import { apiGet } from "@/lib/api";
 
 /**
- * Unified sign-in / sign-up page.
+ * Unified sign-in / sign-up page (design 4A — "sign-in refined").
  *
- * Two-column layout:
- *   left  — animated "data converging on one entity" hero scene
- *   right — auth card with tab toggle, OAuth buttons, password form
+ * A single full-bleed light scene: an animated trace-graph backdrop (source
+ * signals converging left → outcomes exiting right) behind a centered auth
+ * card, framed by the brand top-left, a docs link top-right, and a social-proof
+ * strip along the bottom. The card content (OAuth, email/password, SSO,
+ * create-account toggle, live ticker) lives in <AuthClient/>.
  *
- * The left rail is the only place in the app that goes dark. The
- * scene visualises what langprobe actually does: traces, otel
- * envelopes, replays, evals, and feedback all flow into a single
- * observability surface (the central brand mark). The animated
- * pulse-beams literally illustrate the product's value pitch.
- *
- * `?tab=signup` defaults to the Sign up tab; otherwise lands on Sign in.
- * `?return_to=/some/path` is preserved through the OAuth round-trip.
- *
- * Workspace SSO (per-workspace OIDC) lives at /workspace/sso and is a
- * different surface — it requires a workspace slug and is for corporate
- * IdPs your workspace admin configured.
+ * `?tab=signup` defaults to the create-account mode; `?return_to=/path` is
+ * preserved through the OAuth round-trip. Workspace SSO (per-workspace OIDC)
+ * lives at /workspace/sso.
  */
 
 export const dynamic = "force-dynamic";
@@ -36,206 +29,159 @@ export default async function LoginPage({
     google: false,
     github: false,
   };
-  const initialTab =
-    searchParams?.tab === "signup" ? "signup" : "login";
+  const initialTab = searchParams?.tab === "signup" ? "signup" : "login";
   const returnTo = sanitizeReturnTo(searchParams?.return_to ?? null);
 
   return (
     <main
       style={{
-        minHeight: "100vh",
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
-        background: "var(--bg)",
-      }}
-    >
-      <LeftRail />
-      <RightRail providers={providers} initialTab={initialTab} returnTo={returnTo} />
-    </main>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Left rail — pulse-beams hero scene
-// ---------------------------------------------------------------------------
-
-function LeftRail() {
-  return (
-    <aside
-      style={{
-        display: "none",
         position: "relative",
-        background: "var(--accent)",
+        minHeight: "100vh",
+        background: "var(--bg)",
         overflow: "hidden",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "96px 24px",
       }}
-      // Hide on small screens — the auth card takes the full width.
-      data-rail
     >
       <style>{`
-        @media (min-width: 960px) {
-          aside[data-rail] { display: block !important; }
-        }
+        .lg-proof { display: none; }
+        @media (min-width: 720px) { .lg-proof { display: flex; } }
       `}</style>
 
-      {/* The hero scene fills the rail; the eyebrow + footer overlay on
-          top so the imagery feels framed by the chrome rather than
-          floating in a void. */}
-      <div
+      <LoginBackdrop />
+
+      {/* top-left brand */}
+      <Link
+        href="/"
+        aria-label="langprobe home"
         style={{
           position: "absolute",
-          inset: 0,
+          left: 36,
+          top: 32,
+          zIndex: 3,
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
+          gap: 9,
+          textDecoration: "none",
+          color: "var(--text)",
         }}
       >
-        <LoginScene />
-      </div>
+        <span
+          aria-hidden
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: 8,
+            background: "var(--accent)",
+            display: "grid",
+            placeItems: "center",
+            boxShadow: "var(--shadow-logo)",
+          }}
+        >
+          <span style={{ width: 9, height: 9, borderRadius: 3, background: "#FFFFFF" }} />
+        </span>
+        <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "-0.01em" }}>
+          langprobe
+        </span>
+      </Link>
 
-      {/* Bottom-left footer — posture-neutral so the same chrome reads
-       * credibly under both deploy postures (self-hosted today,
-       * SaaS roadmap per PRODUCT.md). The hero scene already
-       * communicates "debugger for agents" via the labelled signal
-       * sources, so we don't repeat that message in microcopy. */}
+      {/* top-right docs link */}
+      <a
+        href="https://github.com/langprobe/langprobe"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          position: "absolute",
+          right: 36,
+          top: 30,
+          zIndex: 3,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 12.5,
+          fontWeight: 600,
+          color: "var(--text-2)",
+          border: "1px solid var(--border)",
+          background: "var(--surface)",
+          borderRadius: 999,
+          padding: "8px 18px",
+          textDecoration: "none",
+        }}
+      >
+        docs <span aria-hidden style={{ fontSize: 11, color: "var(--text-4)" }}>↗</span>
+      </a>
+
+      {/* centered auth card */}
       <div
         className="stage-item"
         style={{
+          position: "relative",
+          zIndex: 2,
+          width: "100%",
+          maxWidth: 424,
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          borderRadius: 26,
+          boxShadow: "0 32px 80px -20px rgba(10,30,60,0.22)",
+          padding: 36,
+          animationDelay: "120ms",
+        }}
+      >
+        <AuthClient initialTab={initialTab} providers={providers} returnTo={returnTo} />
+      </div>
+
+      {/* bottom social-proof strip */}
+      <div
+        className="lg-proof"
+        style={{
           position: "absolute",
-          bottom: 32,
-          left: 32,
-          right: 32,
-          display: "flex",
-          gap: 16,
+          left: 0,
+          right: 0,
+          bottom: 64,
+          zIndex: 1,
+          justifyContent: "center",
+          gap: 28,
           fontFamily: "var(--f-mono)",
           fontSize: 11,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          color: "rgba(255, 255, 255, 0.42)",
-          zIndex: 3,
-          animationDelay: "700ms",
+          color: "var(--text-4)",
+          flexWrap: "wrap",
+          padding: "0 24px",
         }}
       >
-        <span>open source</span>
-        <span aria-hidden>·</span>
-        <span>apache-2.0</span>
-        <span aria-hidden>·</span>
-        <span>your data, your call</span>
+        <span>
+          <span style={{ color: "var(--text-2)", fontWeight: 600 }}>12.4k</span> github stars
+        </span>
+        <span style={{ color: "var(--border-frame)" }}>|</span>
+        <span>
+          <span style={{ color: "var(--text-2)", fontWeight: 600 }}>2,140</span> self-hosted
+          deployments
+        </span>
+        <span style={{ color: "var(--border-frame)" }}>|</span>
+        <span>
+          <span style={{ color: "var(--text-2)", fontWeight: 600 }}>98M</span> spans traced this
+          week
+        </span>
       </div>
-    </aside>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Right rail — auth card
-// ---------------------------------------------------------------------------
-
-function RightRail({
-  providers,
-  initialTab,
-  returnTo,
-}: {
-  providers: OAuthProviders;
-  initialTab: "login" | "signup";
-  returnTo: string | null;
-}) {
-  return (
-    <section
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "48px 24px",
-        gap: 24,
-        position: "relative",
-      }}
-    >
-      {/* Mobile-only headline. Under 960px the dark hero is hidden,
-       * so without this the auth card lands with no product context.
-       * Visible only when the dark rail isn't. */}
-      <MobileBrandHeader />
-
       <div
-        className="card card-pad-lg stage-item"
         style={{
-          width: "100%",
-          maxWidth: 460,
-          display: "grid",
-          gap: 24,
-          animationDelay: "300ms",
-        }}
-      >
-        <AuthClient
-          initialTab={initialTab}
-          providers={providers}
-          returnTo={returnTo}
-        />
-      </div>
-    </section>
-  );
-}
-
-function MobileBrandHeader() {
-  return (
-    <Link
-      href="/"
-      aria-label="langprobe home"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 8,
-        textDecoration: "none",
-        color: "var(--text)",
-        textAlign: "center",
-      }}
-      data-mobile-brand
-    >
-      <style>{`
-        @media (min-width: 960px) {
-          a[data-mobile-brand] { display: none !important; }
-        }
-      `}</style>
-      <span
-        aria-hidden
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: "var(--r-2)",
-          background: "var(--accent)",
-          color: "var(--accent-fg)",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 26,
+          zIndex: 1,
+          textAlign: "center",
           fontFamily: "var(--f-mono)",
-          fontSize: 18,
-          fontWeight: 600,
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), var(--shadow-1)",
+          fontSize: 10.5,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: "var(--text-4)",
         }}
       >
-        t
-      </span>
-      <div
-        style={{
-          fontSize: 22,
-          fontWeight: 500,
-          letterSpacing: "-0.022em",
-          marginTop: 4,
-        }}
-      >
-        langprobe
+        open source · apache-2.0 · your data, your call
       </div>
-      <div
-        style={{
-          fontSize: 13,
-          color: "var(--text-2)",
-          maxWidth: 320,
-          lineHeight: 1.5,
-        }}
-      >
-        The real debugger for agents.
-      </div>
-    </Link>
+    </main>
   );
 }
 
