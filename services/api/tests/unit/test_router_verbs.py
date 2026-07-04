@@ -26,7 +26,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from langprobe_api.auth import Principal, require_user
 from langprobe_api.config import Settings
@@ -188,6 +188,24 @@ def test_cluster_failures_exception_mapping(mocker, project_id, fake_scope, exc,
     assert resp.status_code == expected_status
 
 
+def test_cluster_failures_allows_viewer_role(mocker, project_id, fake_scope):
+    """Read-only triage — allowed_roles must be the 4-role default, viewer included."""
+    principal = _principal()
+    app = _make_app(mocker, principal=principal)
+    out = ClusterFailuresOut(clusters=[])
+    mocker.patch("langprobe_api.routers.verbs.cluster_failures", mocker.AsyncMock(return_value=out))
+
+    client = TestClient(app)
+    client.post(
+        "/v1/verbs/cluster-failures",
+        json={"project_id": str(project_id), "window_hours": 24, "group_by": "error"},
+    )
+
+    mock, _scope = fake_scope
+    mock.assert_awaited_once()
+    assert mock.await_args.kwargs["allowed_roles"] == ("owner", "admin", "member", "viewer")
+
+
 # ----- propose-eval ----------------------------------------------------------
 
 
@@ -249,6 +267,59 @@ def test_propose_eval_proposer_failed_maps_to_422(mocker, project_id, fake_scope
         },
     )
     assert resp.status_code == 422
+
+
+def test_propose_eval_requires_member_or_above_role(mocker, project_id, fake_scope):
+    """Spends LLM money — allowed_roles must exclude viewer."""
+    principal = _principal()
+    app = _make_app(mocker, principal=principal)
+    draft_id = uuid4()
+    out = EvalDraftOut(
+        draft_id=draft_id,
+        judge_kind="luna:proposed",
+        judge_config={"prompt": "x", "threshold": 0.5, "label": "fail"},
+        status=DraftStatus.READY,
+    )
+    mocker.patch("langprobe_api.routers.verbs.propose_eval", mocker.AsyncMock(return_value=out))
+
+    client = TestClient(app)
+    client.post(
+        "/v1/verbs/propose-eval",
+        json={
+            "project_id": str(project_id),
+            "sample_run_ids": [str(uuid4())],
+            "group_key": "TimeoutError",
+        },
+    )
+
+    mock, _scope = fake_scope
+    mock.assert_awaited_once()
+    assert mock.await_args.kwargs["allowed_roles"] == ("owner", "admin", "member")
+
+
+def test_propose_eval_viewer_is_blocked_with_403(mocker, project_id):
+    """Simulates a viewer: resolve_project_scope raises 403 when the role gate
+    rejects them, and that must surface as a 403 response."""
+    principal = _principal()
+    app = _make_app(mocker, principal=principal)
+    mocker.patch(
+        "langprobe_api.routers.verbs.resolve_project_scope",
+        mocker.AsyncMock(side_effect=HTTPException(403, "insufficient role")),
+    )
+    propose_mock = mocker.patch("langprobe_api.routers.verbs.propose_eval", mocker.AsyncMock())
+
+    client = TestClient(app)
+    resp = client.post(
+        "/v1/verbs/propose-eval",
+        json={
+            "project_id": str(project_id),
+            "sample_run_ids": [str(uuid4())],
+            "group_key": "k",
+        },
+    )
+
+    assert resp.status_code == 403
+    propose_mock.assert_not_awaited()
 
 
 # ----- backtest (async, 202) ------------------------------------------------
@@ -332,6 +403,49 @@ def test_backtest_tenant_context_carries_scope_and_principal_id(mocker, project_
     assert ctx.org_id == scope.org_id
     assert ctx.project_id == scope.project_id
     assert ctx.api_key_id == principal.user_id
+
+
+def test_backtest_requires_member_or_above_role(mocker, project_id, fake_scope):
+    """Dispatches N judge calls — allowed_roles must exclude viewer."""
+    principal = _principal()
+    app = _make_app(mocker, principal=principal)
+    out = BacktestOut(backtest_run_id=uuid4(), status=BacktestStatus.QUEUED)
+    mocker.patch("langprobe_api.routers.verbs.run_judge_over_cohort", mocker.AsyncMock(return_value=out))
+    mocker.patch("fastapi.BackgroundTasks.add_task")
+
+    client = TestClient(app)
+    client.post(
+        "/v1/verbs/backtest",
+        json={"project_id": str(project_id), "draft_id": str(uuid4()), "window_hours": 24},
+    )
+
+    mock, _scope = fake_scope
+    mock.assert_awaited_once()
+    assert mock.await_args.kwargs["allowed_roles"] == ("owner", "admin", "member")
+
+
+def test_backtest_viewer_is_blocked_with_403(mocker, project_id):
+    """Simulates a viewer: resolve_project_scope raises 403 when the role gate
+    rejects them, and that must surface as a 403 response with no background
+    task scheduled."""
+    principal = _principal()
+    app = _make_app(mocker, principal=principal)
+    mocker.patch(
+        "langprobe_api.routers.verbs.resolve_project_scope",
+        mocker.AsyncMock(side_effect=HTTPException(403, "insufficient role")),
+    )
+    verb_mock = mocker.patch("langprobe_api.routers.verbs.run_judge_over_cohort", mocker.AsyncMock())
+    bg_add_task = mocker.patch("fastapi.BackgroundTasks.add_task")
+
+    client = TestClient(app)
+    resp = client.post(
+        "/v1/verbs/backtest",
+        json={"project_id": str(project_id), "draft_id": str(uuid4()), "window_hours": 24},
+    )
+
+    assert resp.status_code == 403
+    verb_mock.assert_not_awaited()
+    bg_add_task.assert_not_called()
 
 
 # ----- promote (human-session-gated) ----------------------------------------
@@ -423,6 +537,54 @@ def test_promote_tenant_context_carries_scope_and_principal_id(mocker, project_i
     assert ctx.api_key_id == principal.user_id
 
 
+def test_promote_requires_admin_or_above_role(mocker, project_id, fake_scope):
+    """Creates a recurring production judge — the human-approval choke point —
+    so allowed_roles must exclude both viewer AND member."""
+    principal = _principal()
+    app = _make_app(mocker, principal=principal)
+    out = PromoteOut(judge_id=uuid4())
+    mocker.patch("langprobe_api.routers.verbs.promote_to_recurring", mocker.AsyncMock(return_value=out))
+
+    client = TestClient(app)
+    client.post(
+        "/v1/verbs/promote",
+        json={
+            "project_id": str(project_id),
+            "draft_id": str(uuid4()),
+            "approval_token": "approved-by-alice",
+        },
+    )
+
+    mock, _scope = fake_scope
+    mock.assert_awaited_once()
+    assert mock.await_args.kwargs["allowed_roles"] == ("owner", "admin")
+
+
+def test_promote_viewer_is_blocked_with_403(mocker, project_id):
+    """Simulates a viewer (or member): resolve_project_scope raises 403 when
+    the role gate rejects them, and that must surface as a 403 response."""
+    principal = _principal()
+    app = _make_app(mocker, principal=principal)
+    mocker.patch(
+        "langprobe_api.routers.verbs.resolve_project_scope",
+        mocker.AsyncMock(side_effect=HTTPException(403, "insufficient role")),
+    )
+    promote_mock = mocker.patch("langprobe_api.routers.verbs.promote_to_recurring", mocker.AsyncMock())
+
+    client = TestClient(app)
+    resp = client.post(
+        "/v1/verbs/promote",
+        json={
+            "project_id": str(project_id),
+            "draft_id": str(uuid4()),
+            "approval_token": "approved-by-alice",
+        },
+    )
+
+    assert resp.status_code == 403
+    promote_mock.assert_not_awaited()
+
+
 # ----- watch -----------------------------------------------------------------
 
 
@@ -463,6 +625,24 @@ def test_watch_scope_error_maps_to_403(mocker, project_id, fake_scope):
         json={"project_id": str(project_id), "target_id": str(uuid4())},
     )
     assert resp.status_code == 403
+
+
+def test_watch_allows_viewer_role(mocker, project_id, fake_scope):
+    """Read-only status poll — allowed_roles must be the 4-role default, viewer included."""
+    principal = _principal()
+    app = _make_app(mocker, principal=principal)
+    out = WatchOut(status="running", caught=None, missed=None, error=None)
+    mocker.patch("langprobe_api.routers.verbs.watch_judge", mocker.AsyncMock(return_value=out))
+
+    client = TestClient(app)
+    client.post(
+        "/v1/verbs/watch",
+        json={"project_id": str(project_id), "target_id": str(uuid4())},
+    )
+
+    mock, _scope = fake_scope
+    mock.assert_awaited_once()
+    assert mock.await_args.kwargs["allowed_roles"] == ("owner", "admin", "member", "viewer")
 
 
 # ----- app registration -------------------------------------------------------

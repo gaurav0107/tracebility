@@ -29,7 +29,7 @@ itself never imports FastAPI.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import TypeVar
 
 import asyncpg
@@ -109,13 +109,20 @@ def _require_clickhouse(request: Request) -> ClickHouseQuery:
 
 
 async def _build_ctx_and_deps(
-    request: Request, project_id, principal: Principal
+    request: Request,
+    project_id,
+    principal: Principal,
+    *,
+    allowed_roles: Sequence[str] = ("owner", "admin", "member", "viewer"),
 ) -> tuple[TenantContext, VerbDeps]:
     """Resolve project scope, then build the (TenantContext, VerbDeps) pair
     every verb call needs. Raises 403/404 (via ``resolve_project_scope``) if
-    the principal can't access ``project_id``."""
+    the principal can't access ``project_id``, or doesn't hold one of
+    ``allowed_roles`` in the project's workspace. Callers that spend LLM
+    money or mutate production judge config must narrow ``allowed_roles``
+    to exclude viewer (and, for promote, member) — see call sites below."""
     pool: asyncpg.Pool = request.app.state.pg
-    scope = await resolve_project_scope(pool, project_id, principal)
+    scope = await resolve_project_scope(pool, project_id, principal, allowed_roles=allowed_roles)
     ctx = TenantContext(
         org_id=scope.org_id,
         workspace_id=scope.workspace_id,
@@ -137,6 +144,7 @@ async def post_cluster_failures(
     body: ClusterFailuresIn,
     principal: Principal = Depends(require_user),
 ) -> ClusterFailuresOut:
+    # Read-only triage — viewer is fine (default allowed_roles).
     ctx, deps = await _build_ctx_and_deps(request, body.project_id, principal)
     return await _call_verb(lambda: cluster_failures(deps, ctx, body))
 
@@ -147,7 +155,10 @@ async def post_propose_eval(
     body: ProposeEvalIn,
     principal: Principal = Depends(require_user),
 ) -> EvalDraftOut:
-    ctx, deps = await _build_ctx_and_deps(request, body.project_id, principal)
+    # Dispatches an LLM call to draft the judge — viewer must not trigger spend.
+    ctx, deps = await _build_ctx_and_deps(
+        request, body.project_id, principal, allowed_roles=("owner", "admin", "member")
+    )
     return await _call_verb(lambda: propose_eval(deps, ctx, body))
 
 
@@ -158,7 +169,10 @@ async def post_backtest(
     background: BackgroundTasks,
     principal: Principal = Depends(require_user),
 ) -> BacktestOut:
-    ctx, deps = await _build_ctx_and_deps(request, body.project_id, principal)
+    # Dispatches N judge calls over the cohort — viewer must not trigger spend.
+    ctx, deps = await _build_ctx_and_deps(
+        request, body.project_id, principal, allowed_roles=("owner", "admin", "member")
+    )
     out = await _call_verb(lambda: run_judge_over_cohort(deps, ctx, body.to_verb_params()))
     background.add_task(_run_backtest, deps, out.backtest_run_id)
     return out
@@ -178,7 +192,13 @@ async def post_promote(
     # human session — do not swap this dependency for an api-key
     # principal, and do not add an alternate api-key-authenticated route
     # to this same verb.
-    ctx, deps = await _build_ctx_and_deps(request, body.project_id, principal)
+    #
+    # Role gate: promoting creates a recurring production judge — the
+    # human-approval choke point in the design — so member (and viewer)
+    # must not be able to trigger it; only owner/admin may.
+    ctx, deps = await _build_ctx_and_deps(
+        request, body.project_id, principal, allowed_roles=("owner", "admin")
+    )
     return await _call_verb(lambda: promote_to_recurring(deps, ctx, body.to_verb_params()))
 
 
@@ -188,5 +208,6 @@ async def post_watch(
     body: WatchRequest,
     principal: Principal = Depends(require_user),
 ) -> WatchOut:
+    # Read-only status poll — viewer is fine (default allowed_roles).
     ctx, deps = await _build_ctx_and_deps(request, body.project_id, principal)
     return await _call_verb(lambda: watch_judge(deps, ctx, body.to_verb_params()))
