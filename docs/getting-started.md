@@ -100,7 +100,7 @@ in `/runs`. Framework recipes and troubleshooting live in
 - Datasets + replay (Phase 12+) — re-run a captured trace against a different
   prompt or model and diff the outputs.
 - Eval rigor — panel-of-judges with inter-rater agreement, not single-judge
-  scores. (See `RESEARCH.md` for what we're building toward and why.)
+  scores.
 - Self-host hardening — TLS termination, S3-compatible blob spill for large
   inputs, Postgres replica.
 

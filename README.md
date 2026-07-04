@@ -18,19 +18,17 @@ services/
   ingest-api/         # OTel GenAI + LangSmith shim ingest, FastAPI
   api/                # auth, RBAC, project/dataset/prompt CRUD, FastAPI
   ingest-worker/      # Redis -> ClickHouse batch writer
-  eval-orchestrator/  # judge fan-out, sampling, RCA
+  migrator/           # idempotent Postgres + ClickHouse schema migrations
+  migrate-langsmith/  # one-shot LangSmith export importer (CLI)
+  operator/           # optional Kubernetes operator for fleet installs
 web/                  # Next.js + TypeScript product UI
 schemas/
   postgres/           # control-plane schema (orgs, users, audit log, ...)
   clickhouse/         # data-plane schema (runs, spans, evals, replays)
-packages/
-  sdk-python/         # langprobe Python SDK
-  sdk-typescript/     # langprobe TypeScript SDK
-infra/                # docker-compose, k8s manifests
-designs/              # UI mockups
+infra/                # docker-compose local self-host stack
+deploy/               # Helm chart, k8s manifests, operator
 DESIGN.md             # design system source of truth
 CLAUDE.md             # project guide for agents
-TODOS.md              # phased build list
 ```
 
 ## Storage stack

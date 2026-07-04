@@ -80,3 +80,8 @@ next-items.md
 
 # Brainstorm visual-companion sessions
 .superpowers/
+
+# Design / agent tooling caches (regenerated locally, not part of the product)
+.impeccable/
+.github/hooks/impeccable.json
+.serena/
