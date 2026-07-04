@@ -109,6 +109,7 @@ def _backtest_run_row(run_id, draft_id, **overrides):
         "would_have_flagged_at": None,
         "item_total": 3,
         "item_done": 0,
+        "window_hours": 720,
         "heartbeat_at": None,
         "started_at": None,
         "finished_at": None,
@@ -194,6 +195,34 @@ async def test_run_judge_over_cohort_clamps_cohort_to_max(mocker):
 # ----- _run_backtest (executor half) ----------------------------------------
 
 
+async def test_run_backtest_uses_callers_window_hours_not_hardcoded_720(mocker):
+    """The cohort selection window MUST match what run_judge_over_cohort
+    sized and returned to the caller (window_hours=24), not a hardcoded
+    720h — otherwise the executed cohort silently diverges from the
+    cohort the caller was shown."""
+    draft_id = uuid4()
+    backtest_run_id = uuid4()
+    project_id = uuid4()
+    draft = _draft_row(project_id=project_id)
+    run_row = _backtest_run_row(backtest_run_id, draft_id, window_hours=24)
+    pool = _make_pool(mocker, fetchrow_rows=[run_row, draft])
+    ch = _make_ch(mocker, cohort_rows=[])
+    deps = VerbDeps(pool=pool, ch=ch)
+
+    before = datetime.now(UTC)
+    await _run_backtest(deps, backtest_run_id)
+    after = datetime.now(UTC)
+
+    ch.query.assert_awaited_once()
+    _, kwargs = ch.query.await_args.args, ch.query.await_args.kwargs
+    since = kwargs["parameters"]["since"]
+
+    # since should be ~24h ago (bounded by the wall-clock window this
+    # test ran in), not ~720h ago.
+    assert (before - timedelta(hours=24)) <= since <= (after - timedelta(hours=24))
+    assert since > before - timedelta(hours=720)
+
+
 async def test_run_backtest_deterministic_contains_judge_stable_caught_missed(mocker):
     draft_id = uuid4()
     backtest_run_id = uuid4()
@@ -254,9 +283,11 @@ async def test_run_backtest_writes_stable_caught_missed_values(mocker):
 
     done_calls = [c for c in pool.execute.await_args_list if "'done'" in c.args[0]]
     assert len(done_calls) == 1
-    _, args = done_calls[0].args, done_calls[0].args
-    # backtest_run_id, caught, missed, would_have_flagged_at is somewhere in args
-    assert backtest_run_id in done_calls[0].args
+    # args: (sql, backtest_run_id, caught, missed, would_have_flagged_at)
+    _, _, caught, missed, would_have_flagged_at = done_calls[0].args
+    assert caught == 2
+    assert missed == 1
+    assert would_have_flagged_at == t1
 
 
 async def test_run_backtest_empty_cohort_marks_done_not_failed(mocker):
@@ -338,7 +369,7 @@ async def test_run_backtest_exceeding_cost_ceiling_marks_failed_cap_exceeded(moc
     pool = _make_pool(mocker, fetchrow_rows=[run_row, draft])
     expensive_rows = [_cohort_row() for _ in range(3)]
     for r in expensive_rows:
-        r["cost_usd"] = COST_CEILING_USD  # first item alone blows the ceiling
+        r["cost_usd"] = COST_CEILING_USD  # 2nd item's running total exceeds the ceiling
     ch = _make_ch(mocker, cohort_rows=expensive_rows)
     deps = VerbDeps(pool=pool, ch=ch)
 

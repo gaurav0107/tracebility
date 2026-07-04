@@ -111,14 +111,15 @@ async def run_judge_over_cohort(
     row = await deps.pool.fetchrow(
         """
         insert into backtest_run (
-            draft_id, status, cohort_size, item_total
+            draft_id, status, cohort_size, item_total, window_hours
         )
-        values ($1, 'queued', $2, $3)
+        values ($1, 'queued', $2, $3, $4)
         returning id, status
         """,
         params.draft_id,
         cohort_size,
         cohort_size,
+        clamped_hours,
     )
     assert row is not None
     return BacktestOut(backtest_run_id=row["id"], status=BacktestStatus(row["status"]))
@@ -132,7 +133,7 @@ async def _run_backtest(deps: VerbDeps, backtest_run_id: UUID) -> None:
     try:
         run = await deps.pool.fetchrow(
             """
-            select id, draft_id, status, cohort_size, item_total
+            select id, draft_id, status, cohort_size, item_total, window_hours
             from backtest_run where id = $1
             """,
             backtest_run_id,
@@ -160,7 +161,7 @@ async def _run_backtest(deps: VerbDeps, backtest_run_id: UUID) -> None:
             backtest_run_id,
         )
 
-        window_hours = 720  # cohort selection window is bounded independent of caller
+        window_hours = run["window_hours"]
         since = datetime.now(UTC) - timedelta(hours=window_hours)
         cohort = await deps.ch.query(
             _COHORT_SQL,
@@ -210,7 +211,7 @@ async def _run_backtest(deps: VerbDeps, backtest_run_id: UUID) -> None:
                 break
 
             score, label, rationale, raw_output, outcome = await _score_run(
-                judge_kind, judge_config, cohort_run
+                deps, judge_kind, judge_config, cohort_run
             )
 
             rows.append(
@@ -294,7 +295,7 @@ async def _run_backtest(deps: VerbDeps, backtest_run_id: UUID) -> None:
 
 
 async def _score_run(
-    judge_kind: str, judge_config: dict[str, Any], run: dict[str, Any]
+    deps: VerbDeps, judge_kind: str, judge_config: dict[str, Any], run: dict[str, Any]
 ) -> tuple[float, str, str, str, str]:
     """Score one cohort run. Returns
     ``(score, label, rationale, raw_output, outcome)``.
@@ -314,7 +315,7 @@ async def _score_run(
             # provider failure), so map that to judge_unavailable.
             score, label, rationale, raw_output = await luna_judges.apply_luna_judge(
                 judge_config,
-                pool=None,  # type: ignore[arg-type]
+                pool=deps.pool,
                 project_id=run.get("project_id"),
                 surface="backtest",
                 surface_ref_id=run["run_id"],
