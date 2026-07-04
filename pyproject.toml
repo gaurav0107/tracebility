@@ -14,6 +14,7 @@ members = [
     "services/api",
     "services/ingest-worker",
     "services/migrate-langsmith",
+    "services/mcp-adapter",
 ]
 # services/eval-orchestrator is referenced in the multi-tenancy spec but
 # does not exist as a service yet. The per-org concurrency semaphore that
