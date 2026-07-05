@@ -29,6 +29,10 @@ Fully-qualified release name: <release>-<chart>, capped at 63 chars.
 {{- printf "%s-ingest-worker" (include "langprobe.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{- define "langprobe.scheduler.fullname" -}}
+{{- printf "%s-scheduler" (include "langprobe.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
 {{- define "langprobe.web.fullname" -}}
 {{- printf "%s-web" (include "langprobe.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
@@ -68,6 +72,12 @@ app.kubernetes.io/component: ingest-api
 app.kubernetes.io/name: {{ include "langprobe.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/component: ingest-worker
+{{- end }}
+
+{{- define "langprobe.scheduler.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "langprobe.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: scheduler
 {{- end }}
 
 {{- define "langprobe.web.selectorLabels" -}}
