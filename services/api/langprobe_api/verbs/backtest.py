@@ -10,10 +10,11 @@ Split in two, mirroring ``routers/evals.py``'s ``_run_eval``:
 
 - :func:`run_judge_over_cohort` — the SYNC setup half. Scope-checks the
   draft, sizes the cohort (clamped to :data:`MAX_COHORT`), inserts a
-  ``queued`` ``backtest_run`` row, and returns. Framework-agnostic on
-  purpose: no FastAPI/BackgroundTasks import here — a later task's HTTP
-  router (or the MCP adapter) is responsible for scheduling the
-  execution below.
+  ``queued`` ``backtest_run`` row, transitions the draft
+  ``DRAFTING -> BACKTESTING`` (via ``lifecycle.can_transition``), and
+  returns. Framework-agnostic on purpose: no FastAPI/BackgroundTasks
+  import here — a later task's HTTP router (or the MCP adapter) is
+  responsible for scheduling the execution below.
 - :func:`_run_backtest` — the EXECUTOR half. Loads the run + draft,
   flips to ``running``, selects the cohort, scores each row with the
   draft's judge, writes one ``backtest_score`` row per item to the
@@ -23,7 +24,12 @@ Split in two, mirroring ``routers/evals.py``'s ``_run_eval``:
   exceeding either aborts the run as ``failed`` with a
   ``cap_exceeded:<which>`` error. A per-item judge error never aborts
   the whole run (ER-23): that row is written with
-  ``outcome='judge_unavailable'`` and the loop continues.
+  ``outcome='judge_unavailable'`` and the loop continues. On a
+  successful ``done`` finalize (including the empty-cohort case), the
+  draft is transitioned ``BACKTESTING -> READY`` — this is what makes
+  ``promote_to_recurring``'s READY gate mean "has completed a
+  backtest". On ``failed``/cap-exceeded, the draft is left in
+  ``BACKTESTING`` so promote stays blocked.
 
 Caps + threshold are tenant-agnostic module constants — they bound a
 single backtest run's blast radius regardless of plan.
@@ -39,7 +45,7 @@ from langprobe_tenant.context import TenantContext
 
 from langprobe_api.routers import luna_judges
 from langprobe_api.verbs.deps import VerbDeps
-from langprobe_api.verbs.lifecycle import BacktestStatus
+from langprobe_api.verbs.lifecycle import BacktestStatus, DraftStatus, can_transition
 from langprobe_api.verbs.models import BacktestIn, BacktestOut
 from langprobe_api.verbs.scope import ScopeError, require_project_scope
 
@@ -122,6 +128,22 @@ async def run_judge_over_cohort(
         clamped_hours,
     )
     assert row is not None
+
+    # A draft only reaches BACKTESTING once a backtest has actually been
+    # queued for it — this is what makes the READY gate in
+    # promote_to_recurring meaningful ("backtested", not just "drafted").
+    current_status = DraftStatus(draft["status"])
+    if can_transition(current_status, DraftStatus.BACKTESTING):
+        await deps.pool.execute(
+            """
+            update backtest_draft
+            set status = $2
+            where id = $1
+            """,
+            draft["id"],
+            DraftStatus.BACKTESTING.value,
+        )
+
     return BacktestOut(backtest_run_id=row["id"], status=BacktestStatus(row["status"]))
 
 
@@ -143,7 +165,7 @@ async def _run_backtest(deps: VerbDeps, backtest_run_id: UUID) -> None:
 
         draft = await deps.pool.fetchrow(
             """
-            select id, project_id, org_id, judge_kind, judge_config
+            select id, project_id, org_id, judge_kind, judge_config, status
             from backtest_draft where id = $1
             """,
             run["draft_id"],
@@ -183,6 +205,7 @@ async def _run_backtest(deps: VerbDeps, backtest_run_id: UUID) -> None:
                 """,
                 backtest_run_id,
             )
+            await _mark_draft_ready(deps.pool, draft)
             return
 
         judge_kind = draft["judge_kind"]
@@ -211,7 +234,7 @@ async def _run_backtest(deps: VerbDeps, backtest_run_id: UUID) -> None:
                 break
 
             score, label, rationale, raw_output, outcome = await _score_run(
-                deps, judge_kind, judge_config, cohort_run
+                deps, judge_kind, judge_config, cohort_run, project_id=draft["project_id"]
             )
 
             rows.append(
@@ -290,12 +313,18 @@ async def _run_backtest(deps: VerbDeps, backtest_run_id: UUID) -> None:
             missed,
             would_have_flagged_at,
         )
+        await _mark_draft_ready(deps.pool, draft)
     except Exception as exc:  # noqa: BLE001
         await _mark_backtest_failed(deps.pool, backtest_run_id, str(exc))
 
 
 async def _score_run(
-    deps: VerbDeps, judge_kind: str, judge_config: dict[str, Any], run: dict[str, Any]
+    deps: VerbDeps,
+    judge_kind: str,
+    judge_config: dict[str, Any],
+    run: dict[str, Any],
+    *,
+    project_id: UUID,
 ) -> tuple[float, str, str, str, str]:
     """Score one cohort run. Returns
     ``(score, label, rationale, raw_output, outcome)``.
@@ -309,18 +338,30 @@ async def _score_run(
     """
     try:
         if judge_kind.startswith("luna:"):
-            # Delegated path — not exercised by the deterministic unit
-            # tests, but wired for completeness. `apply_luna_judge`
-            # itself never raises (it returns label='error' on
-            # provider failure), so map that to judge_unavailable.
+            # A `luna:proposed` draft's `judge_config` is
+            # `{"prompt", "threshold", "label"}` (see verbs/propose.py's
+            # `ProposedJudge`) — NOT a `luna_judge` row shape.
+            # `apply_luna_judge` expects a `judge_row`-shaped dict
+            # (`rubric_prompt`/`provider`/`model`/...), so build one here
+            # rather than passing `judge_config` straight through.
+            judge_row = {
+                "rubric_prompt": judge_config["prompt"],
+                "provider": "anthropic",
+                "model": "claude-3-5-haiku-latest",
+                "output_format": "score-rationale",
+                "temperature": 0.0,
+                "max_tokens": 512,
+                "slug": "proposed",
+            }
             score, label, rationale, raw_output = await luna_judges.apply_luna_judge(
-                judge_config,
+                judge_row,
                 pool=deps.pool,
-                project_id=run.get("project_id"),
-                surface="backtest",
+                project_id=project_id,
+                surface="eval",
                 surface_ref_id=run["run_id"],
-                input_text=run.get("outputs") or "",
-                expected=judge_config.get("expected", ""),
+                input_text=str(run["inputs"]),
+                expected="",
+                output_text=str(run["outputs"]),
             )
             outcome = "ok" if label != "error" else "judge_unavailable"
             return score, label, rationale, raw_output, outcome
@@ -363,4 +404,24 @@ async def _mark_backtest_failed(pool: Any, backtest_run_id: UUID, reason: str) -
         """,
         backtest_run_id,
         reason[:2000],
+    )
+
+
+async def _mark_draft_ready(pool: Any, draft: dict[str, Any]) -> None:
+    """Transition a draft BACKTESTING -> READY on a successfully
+    finished (``done``) backtest. Guarded by :func:`can_transition` so
+    a draft already promoted/discarded/ready is left untouched — this
+    is what makes ``promote_to_recurring``'s READY gate mean "has
+    completed a backtest", not just "was drafted"."""
+    current_status = DraftStatus(draft["status"])
+    if not can_transition(current_status, DraftStatus.READY):
+        return
+    await pool.execute(
+        """
+        update backtest_draft
+        set status = $2
+        where id = $1
+        """,
+        draft["id"],
+        DraftStatus.READY.value,
     )

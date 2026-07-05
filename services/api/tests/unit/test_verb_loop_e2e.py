@@ -147,6 +147,7 @@ class _FakePool:
                 "org_id": draft["org_id"],
                 "judge_kind": draft["judge_kind"],
                 "judge_config": draft["judge_config"],
+                "status": draft["status"],
             }
 
         if "insert into backtest_run" in q:
@@ -399,7 +400,11 @@ async def _run_full_loop(mocker, ctx: TenantContext, deps: VerbDeps):
     # after propose_eval returns, mirroring an operator editing the
     # draft's judge_kind before backtesting — the loop's *shape* is
     # what's under test, not propose.py's own JUDGE_KIND choice, which
-    # `test_verb_propose.py` already covers).
+    # `test_verb_propose.py` already covers). The draft's STATUS,
+    # however, is left entirely to the real lifecycle wiring below —
+    # propose_eval persists DRAFTING, run_judge_over_cohort transitions
+    # it to BACKTESTING, and _run_backtest transitions it to READY on
+    # successful completion. Nothing here hand-sets draft status.
     mocker.patch(
         "langprobe_api.verbs.propose._draft_via_llm",
         mocker.AsyncMock(return_value=DETERMINISTIC_JUDGE_JSON),
@@ -413,29 +418,33 @@ async def _run_full_loop(mocker, ctx: TenantContext, deps: VerbDeps):
             group_key=cluster.key,
         ),
     )
-    assert propose_out.status == DraftStatus.READY
+    assert propose_out.status == DraftStatus.DRAFTING
 
     # Force the persisted draft onto the deterministic "contains" judge
     # kind so `_run_backtest` scores it reproducibly (see note above).
+    # This does NOT touch draft status.
     stored_draft = deps.pool.drafts[propose_out.draft_id]
     stored_draft["judge_kind"] = "contains"
     stored_draft["judge_config"] = {"expected": "ok"}
 
     # 3. run_judge_over_cohort (setup) — from propose_eval's draft_id.
+    # This is the REAL transition DRAFTING -> BACKTESTING.
     backtest_out = await run_judge_over_cohort(
         deps, ctx, BacktestIn(draft_id=propose_out.draft_id, window_hours=24)
     )
     assert backtest_out.status == BacktestStatus.QUEUED
+    assert stored_draft["status"] == DraftStatus.BACKTESTING.value
 
-    # 3b. _run_backtest (executor) — the background half.
+    # 3b. _run_backtest (executor) — the background half. On successful
+    # completion this is the REAL transition BACKTESTING -> READY (no
+    # hand-set status hack) — the fake pool applies the same
+    # `update backtest_draft` statement backtest.py issues in
+    # production.
     await backtest_mod._run_backtest(deps, backtest_out.backtest_run_id)
+    assert stored_draft["status"] == DraftStatus.READY.value
 
-    # 4. promote_to_recurring — from the same draft_id, now backtested.
-    # Flip the draft back to "ready" first (the fixture's fake store
-    # doesn't auto-transition draft status on a finished backtest —
-    # that lifecycle wiring is out of scope for this composition test;
-    # `test_verb_promote.py` covers the draft-status gate itself).
-    stored_draft["status"] = DraftStatus.READY.value
+    # 4. promote_to_recurring — from the same draft_id, now backtested
+    # for real.
     promote_out = await promote_to_recurring(
         deps,
         ctx,
@@ -480,9 +489,10 @@ async def test_loop_composes_each_output_feeds_the_next_input(mocker, loop_env):
     # propose_eval consumed are exactly what the cluster produced.
     assert len(cluster_out.clusters[0].sample_run_ids) == 3
 
-    # propose_eval -> run_judge_over_cohort: a real draft_id, ready status.
+    # propose_eval -> run_judge_over_cohort: a real draft_id, drafting
+    # status (it still needs a completed backtest before it's ready).
     assert propose_out.draft_id is not None
-    assert propose_out.status == DraftStatus.READY
+    assert propose_out.status == DraftStatus.DRAFTING
 
     # run_judge_over_cohort -> _run_backtest -> watch_judge: the same
     # backtest_run_id flows through and ends up "done".
@@ -583,9 +593,11 @@ async def test_loop_rejects_cross_project_context_at_every_verb(mocker, loop_env
     from langprobe_api.verbs.backtest import _run_backtest
 
     await _run_backtest(deps, backtest_out.backtest_run_id)
+    # _run_backtest transitions the draft BACKTESTING -> READY for real
+    # on successful completion — no hand-set status hack needed.
+    assert stored_draft["status"] == DraftStatus.READY.value
 
     # promote_to_recurring: wrong ctx, real draft_id -> ScopeError.
-    stored_draft["status"] = DraftStatus.READY.value
     with pytest.raises(ScopeError):
         await promote_to_recurring(
             deps,

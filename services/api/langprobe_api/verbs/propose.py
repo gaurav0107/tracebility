@@ -35,7 +35,9 @@ token itself is stripped out of field values before interpolation, so
 a sample cannot collide with its own fence even by chance.
 
 Two distinct outcomes, kept apart on purpose:
-- valid draft -> persisted, returns :class:`EvalDraftOut` (status=ready).
+- valid draft -> persisted, returns :class:`EvalDraftOut`
+  (status=drafting — it still needs a successful backtest before it can
+  be promoted; see ``verbs/lifecycle.py``'s ``DraftStatus``).
 - proposer failed (malformed/invalid JSON twice) -> raises
   :class:`ProposerFailedError`; nothing is persisted.
 """
@@ -158,7 +160,7 @@ async def propose_eval(
         cluster_ref,
         JUDGE_KIND,
         judge_config,
-        DraftStatus.READY.value,
+        DraftStatus.DRAFTING.value,
         ctx.api_key_id,
         datetime.now(UTC),
     )
@@ -168,7 +170,7 @@ async def propose_eval(
         draft_id=row["id"],
         judge_kind=JUDGE_KIND,
         judge_config=judge_config,
-        status=DraftStatus.READY,
+        status=DraftStatus.DRAFTING,
     )
 
 

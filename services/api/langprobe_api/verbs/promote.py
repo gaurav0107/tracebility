@@ -106,6 +106,7 @@ async def promote_to_recurring(deps: VerbDeps, ctx: TenantContext, params: Promo
         slug=slug,
         prompt=prompt,
         draft_id=draft["id"],
+        created_by=ctx.api_key_id,
     )
 
     await deps.pool.execute(
@@ -122,7 +123,13 @@ async def promote_to_recurring(deps: VerbDeps, ctx: TenantContext, params: Promo
 
 
 async def _insert_or_get_judge(
-    pool: Any, *, project_id: UUID, slug: str, prompt: str, draft_id: UUID
+    pool: Any,
+    *,
+    project_id: UUID,
+    slug: str,
+    prompt: str,
+    draft_id: UUID,
+    created_by: UUID | None,
 ) -> UUID:
     """Insert a new ``luna_judge`` for (project_id, slug); on a unique
     violation (a prior promotion already created it), fetch and return
@@ -145,7 +152,7 @@ async def _insert_or_get_judge(
             "score-rationale",
             "anthropic",
             PROMOTED_JUDGE_MODEL,
-            None,
+            created_by,
         )
         assert row is not None
         return row["id"]

@@ -107,6 +107,8 @@ async def test_promote_happy_path_creates_judge_and_marks_draft_promoted(mocker)
         c for c in pool.fetchrow.await_args_list if "insert into luna_judge" in c.args[0]
     )
     assert draft["judge_config"]["prompt"] in insert_call.args
+    # created_by is the acting user's api_key_id, not hardcoded None.
+    assert ctx.api_key_id in insert_call.args
 
     update_call = next(
         c for c in pool.execute.await_args_list if "update backtest_draft" in c.args[0]
@@ -179,6 +181,28 @@ async def test_promote_draft_not_ready_raises_and_inserts_nothing(mocker):
     project_id = uuid4()
     ctx = _make_ctx(project_id)
     draft = _draft_row(project_id, status="drafting")
+    pool = _make_pool(mocker, fetchrow_rows=[draft])
+    deps = _make_deps(pool)
+    params = PromoteIn(draft_id=draft["id"], approval_token="approved-by-alice")
+
+    with pytest.raises(DraftNotReadyError):
+        await promote_to_recurring(deps, ctx, params)
+
+    insert_calls = [
+        c for c in pool.fetchrow.await_args_list if "insert into luna_judge" in c.args[0]
+    ]
+    assert insert_calls == []
+
+
+@pytest.mark.parametrize("status", ["drafting", "backtesting"])
+async def test_promote_draft_never_backtested_is_rejected(mocker, status):
+    """A draft that has never completed a successful backtest — whether
+    it's still fresh (`drafting`) or a backtest was started but hasn't
+    finished (`backtesting`) — must be rejected. Only a draft that
+    reached READY via a completed `_run_backtest` run may be promoted."""
+    project_id = uuid4()
+    ctx = _make_ctx(project_id)
+    draft = _draft_row(project_id, status=status)
     pool = _make_pool(mocker, fetchrow_rows=[draft])
     deps = _make_deps(pool)
     params = PromoteIn(draft_id=draft["id"], approval_token="approved-by-alice")

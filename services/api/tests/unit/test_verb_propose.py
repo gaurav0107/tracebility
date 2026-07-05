@@ -8,7 +8,8 @@ network.
 
 Covered:
 - valid LLM JSON -> backtest_draft INSERT with cluster_ref containing
-  the sample_run_ids, EvalDraftOut status=ready.
+  the sample_run_ids, EvalDraftOut status=drafting (a draft still needs
+  a completed backtest before promote_to_recurring will accept it).
 - malformed JSON twice -> ProposerFailedError, no draft inserted.
 - malformed-then-valid -> succeeds with exactly 2 LLM dispatches.
 - trust boundary: an injection string in a sample's output appears
@@ -107,7 +108,7 @@ async def test_propose_eval_valid_llm_json_inserts_draft_and_returns_ready(mocke
 
     assert out.draft_id == draft_id
     assert out.judge_kind == "luna:proposed"
-    assert out.status == DraftStatus.READY
+    assert out.status == DraftStatus.DRAFTING
     assert out.judge_config["prompt"] == "Flag responses that time out."
     assert out.judge_config["threshold"] == 0.5
 
@@ -123,6 +124,8 @@ async def test_propose_eval_valid_llm_json_inserts_draft_and_returns_ready(mocke
     assert [str(x) for x in cluster_ref_arg["sample_run_ids"]] == [str(run_id)]
     judge_kind_arg = next(a for a in args if a == "luna:proposed")
     assert judge_kind_arg == "luna:proposed"
+    assert DraftStatus.DRAFTING.value in args
+    assert DraftStatus.READY.value not in args
 
 
 async def test_propose_eval_malformed_json_twice_raises_and_inserts_nothing(mocker):
@@ -171,7 +174,7 @@ async def test_propose_eval_malformed_then_valid_succeeds_with_two_dispatches(mo
     out = await propose_eval(deps, ctx, params)
 
     assert mock_draft.await_count == 2
-    assert out.status == DraftStatus.READY
+    assert out.status == DraftStatus.DRAFTING
     assert out.draft_id == draft_id
 
 
@@ -387,7 +390,7 @@ async def test_propose_eval_parses_json_wrapped_in_code_fence(mocker):
     out = await propose_eval(deps, ctx, params)
 
     mock_draft.assert_awaited_once()
-    assert out.status == DraftStatus.READY
+    assert out.status == DraftStatus.DRAFTING
     assert out.draft_id == draft_id
     assert out.judge_config["prompt"] == "Flag responses that time out."
 
