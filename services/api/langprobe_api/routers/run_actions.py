@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 from .. import audit
 from ..auth import Principal, assert_workspace_role, require_user
 from ..clickhouse_client import ClickHouseQuery
+from ..tenant_scope import resolve_tenant_ids
 
 log = structlog.get_logger("langprobe.api.run_actions")
 
@@ -85,6 +86,7 @@ async def add_to_dataset(
     workspace_id = await _assert_project_role(
         pool, principal, body.project_id, ("owner", "admin", "member")
     )
+    org_id, workspace_id = await resolve_tenant_ids(pool, body.project_id)
     dataset = await pool.fetchrow(
         """select id, project_id, item_count from dataset
              where id = $1 and deleted_at is null""",
@@ -109,6 +111,8 @@ async def add_to_dataset(
         item_id = uuid4()
         rows.append(
             (
+                str(org_id),
+                str(workspace_id),
                 str(body.project_id),
                 str(body.dataset_id),
                 str(item_id),
@@ -130,6 +134,8 @@ async def add_to_dataset(
                 "dataset_item",
                 rows,
                 column_names=[
+                    "org_id",
+                    "workspace_id",
                     "project_id",
                     "dataset_id",
                     "item_id",

@@ -67,8 +67,13 @@ const KIND_OPTIONS = [
   { value: "llm", label: "llm" },
   { value: "tool", label: "tool" },
   { value: "retriever", label: "retriever" },
+  { value: "reranker", label: "reranker" },
   { value: "embedding", label: "embedding" },
   { value: "parser", label: "parser" },
+  { value: "workflow", label: "workflow" },
+  { value: "task", label: "task" },
+  { value: "guardrail", label: "guardrail" },
+  { value: "evaluator", label: "evaluator" },
 ];
 
 const WINDOW_OPTIONS: { value: string; label: string }[] = [
@@ -455,7 +460,7 @@ function SaveCurrentViewButton({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(10,10,10,0.40)",
+        background: "var(--scrim)",
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
@@ -467,7 +472,7 @@ function SaveCurrentViewButton({
       }}
     >
       <div
-        className="card card-pad-lg"
+        className="card-elevated card-pad-lg"
         style={{ width: "min(480px, 100%)", display: "grid", gap: 12 }}
       >
         <header
@@ -477,7 +482,16 @@ function SaveCurrentViewButton({
             justifyContent: "space-between",
           }}
         >
-          <h2 style={{ margin: 0 }}>Save view</h2>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 18,
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            Save view
+          </h2>
           <button type="button" className="btn btn-ghost" onClick={reset}>
             cancel
           </button>
@@ -570,7 +584,7 @@ function FilterSummary({ filters }: { filters: SavedViewFilters }) {
         margin: 0,
         background: "var(--surface-2)",
         padding: 10,
-        borderRadius: 6,
+        borderRadius: "var(--r-4)",
         fontSize: 12,
         whiteSpace: "pre-wrap",
       }}
@@ -610,59 +624,111 @@ export function FilterBar({ projectId: _projectId }: { projectId: string }) {
     router.push(qs ? `/runs?${qs}` : "/runs");
   }
 
+  const hasFilter = Boolean(statusV || kindV || searchV.trim() || windowV);
+
   return (
     <form
       onSubmit={apply}
-      className="card"
       style={{
-        padding: 12,
-        display: "grid",
-        gridTemplateColumns: "1fr 160px 160px 160px auto",
-        gap: 8,
-        alignItems: "end",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        flexWrap: "wrap",
       }}
     >
-      <Field label="Search" hint="case-insensitive substring on run name">
+      <label
+        className="search-box"
+        style={{ flex: "1 1 300px", minWidth: 260, maxWidth: 440 }}
+      >
+        <span aria-hidden style={{ fontSize: 12, color: "var(--text-4)" }}>
+          ⌕
+        </span>
         <input
           value={searchV}
           onChange={(e) => setSearchV(e.target.value)}
-          placeholder="filter by name"
+          placeholder="name, id, or prompt…"
+          aria-label="Search runs"
         />
-      </Field>
-      <Field label="Status">
-        <select
-          value={statusV}
-          onChange={(e) => setStatusV(e.target.value)}
-        >
-          {STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Kind">
-        <select value={kindV} onChange={(e) => setKindV(e.target.value)}>
-          {KIND_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Window">
-        <select value={windowV} onChange={(e) => setWindowV(e.target.value)}>
-          {WINDOW_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <button type="submit" className="btn btn-primary" style={{ fontSize: 12 }}>
+      </label>
+      <PillSelect
+        ariaLabel="Status"
+        value={statusV}
+        onChange={setStatusV}
+        options={STATUS_OPTIONS}
+      />
+      <PillSelect
+        ariaLabel="Kind"
+        value={kindV}
+        onChange={setKindV}
+        options={KIND_OPTIONS}
+      />
+      <PillSelect
+        ariaLabel="Window"
+        value={windowV}
+        onChange={setWindowV}
+        options={WINDOW_OPTIONS}
+      />
+      <button type="submit" className="btn btn-primary" style={{ height: 38 }}>
         Apply
       </button>
+      {hasFilter ? (
+        <button
+          type="button"
+          onClick={() => {
+            setStatusV("");
+            setKindV("");
+            setSearchV("");
+            setWindowV("");
+            router.push("/runs");
+          }}
+          style={{
+            background: "none",
+            border: 0,
+            cursor: "pointer",
+            fontFamily: "var(--f-sans)",
+            fontSize: 12,
+            fontWeight: 600,
+            color: "var(--text-4)",
+            padding: "0 6px",
+          }}
+        >
+          clear all
+        </button>
+      ) : null}
     </form>
+  );
+}
+
+// Compact pill-shaped <select> for the filter row — uses the shared input-shell
+// pill grammar (border, focus ring, ▾ caret) so it matches the new design.
+function PillSelect({
+  ariaLabel,
+  value,
+  onChange,
+  options,
+}: {
+  ariaLabel: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <span
+      className="input-shell input-shell-select"
+      style={{ flex: "0 0 auto", minWidth: 132 }}
+    >
+      <select
+        aria-label={ariaLabel}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </span>
   );
 }
 

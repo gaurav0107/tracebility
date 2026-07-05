@@ -175,7 +175,7 @@ export function NewJudgeButton({ projectId }: { projectId: string }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(10,10,10,0.40)",
+        background: "var(--scrim)",
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
@@ -187,7 +187,7 @@ export function NewJudgeButton({ projectId }: { projectId: string }) {
       }}
     >
       <div
-        className="card card-pad-lg"
+        className="card-elevated card-pad-lg"
         style={{ width: "min(720px, 100%)", display: "grid", gap: 12, maxHeight: "90vh", overflow: "auto" }}
       >
         <header
@@ -233,7 +233,7 @@ export function NewJudgeButton({ projectId }: { projectId: string }) {
             value={rubric}
             onChange={(e) => setRubric(e.target.value)}
             rows={10}
-            style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}
+            style={{ fontFamily: "var(--f-mono)", fontSize: 12 }}
           />
         </Field>
         <ProviderModelPicker
@@ -244,10 +244,7 @@ export function NewJudgeButton({ projectId }: { projectId: string }) {
             setModel(m);
           }}
         />
-        <p
-          className="mono"
-          style={{ fontSize: 11, color: "var(--text-3)", margin: 0 }}
-        >
+        <p className="field-hint" style={{ margin: 0 }}>
           tip: pick &lsquo;Custom&hellip;&rsquo; and type{" "}
           <code>stub/echo</code> for the deterministic test path that
           bypasses LiteLLM.
@@ -283,10 +280,7 @@ export function NewJudgeButton({ projectId }: { projectId: string }) {
           </Field>
         </div>
         {error ? (
-          <p
-            className="mono"
-            style={{ color: "var(--danger)", margin: 0, fontSize: 12 }}
-          >
+          <p className="field-error" style={{ margin: 0 }}>
             {error}
           </p>
         ) : null}
@@ -364,23 +358,10 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label style={{ display: "grid", gap: 4 }}>
-      <span
-        style={{
-          fontSize: 11,
-          color: "var(--text-3)",
-          textTransform: "uppercase",
-          letterSpacing: 0.4,
-        }}
-      >
-        {label}
-      </span>
+    <label className="field">
+      <span className="field-label">{label}</span>
       {children}
-      {hint ? (
-        <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>
-          {hint}
-        </span>
-      ) : null}
+      {hint ? <span className="field-hint">{hint}</span> : null}
     </label>
   );
 }

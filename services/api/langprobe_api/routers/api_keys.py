@@ -4,9 +4,12 @@ Keys are ``lt_<public_id>.<secret>``. We store ``public_id`` (lookup key) and
 argon2id(``secret``) only. The plain key is shown to the user ONCE on create.
 This matches Stripe's pattern and is what the ingest-api validates.
 
-Per ER-20: revocation must be immediate. We set ``revoked_at = now()``; the
-ingest-api re-fetches the row on every request, so the next ingest call after
-revocation will 401. No cache to invalidate.
+Per ER-20: revocation must be immediate. We set ``revoked_at = now()`` (the
+source of truth), then publish the key's ``public_id`` on the resolver's
+``apikey:invalidate`` pubsub channel so the ingest-api's resolver drops its
+cached positive lookup at once. Without that publish a revoked key keeps
+authenticating ingest until the resolver's positive-cache TTL (60s) expires,
+because ``require_ingest_key`` only re-verifies ``secret_hash`` on a cache hit.
 """
 
 from __future__ import annotations
@@ -16,13 +19,16 @@ from datetime import datetime
 from uuid import UUID
 
 import asyncpg
+import structlog
 from argon2 import PasswordHasher
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from langprobe_tenant.resolver import announce_invalidation
 from pydantic import BaseModel, Field
 
 from .. import audit
 from ..auth import Principal, assert_workspace_role, require_user
 
+log = structlog.get_logger("langprobe.api.api_keys")
 router = APIRouter(prefix="/v1/api_keys", tags=["api_keys"])
 
 _PH = PasswordHasher()
@@ -166,7 +172,7 @@ async def revoke_api_key(
     pool: asyncpg.Pool = request.app.state.pg
     row = await pool.fetchrow(
         """
-        select api_key.project_id, project.workspace_id
+        select api_key.project_id, api_key.public_id, project.workspace_id
         from api_key
         join project on project.id = api_key.project_id
         where api_key.id = $1 and api_key.revoked_at is null
@@ -185,6 +191,22 @@ async def revoke_api_key(
         "update api_key set revoked_at = now() where id = $1",
         api_key_id,
     )
+    # Bust the resolver's positive cache immediately. Without this the key
+    # keeps authenticating ingest for up to the positive-cache TTL (60s) after
+    # revocation, because require_ingest_key only re-verifies secret_hash — not
+    # revoked_at — on a cache hit. Best-effort: the row is already revoked in
+    # postgres (source of truth) and the TTL is the backstop, so a redis blip
+    # must not fail the revoke.
+    redis = getattr(request.app.state, "redis", None)
+    if redis is not None:
+        try:
+            await announce_invalidation(redis, row["public_id"])
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "api key revoked but cache-invalidation publish failed",
+                api_key_id=str(api_key_id),
+                error=str(exc),
+            )
     await audit.record(
         pool,
         principal=principal,

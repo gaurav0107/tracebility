@@ -186,7 +186,7 @@ export function NewLLMCredentialButton({
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(10,10,10,0.40)",
+            background: "var(--scrim)",
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",
@@ -198,7 +198,7 @@ export function NewLLMCredentialButton({
           }}
         >
           <div
-            className="card card-pad-lg"
+            className="card-elevated card-pad-lg"
             style={{ width: "min(560px, 100%)", display: "grid", gap: 16 }}
           >
             <header
@@ -314,7 +314,7 @@ function RevealOnceModal({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(10,10,10,0.40)",
+        background: "var(--scrim)",
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
@@ -326,7 +326,7 @@ function RevealOnceModal({
       }}
     >
       <div
-        className="card card-pad-lg"
+        className="card-elevated card-pad-lg"
         style={{ width: "min(560px, 100%)", display: "grid", gap: 12 }}
       >
         <header>
@@ -351,7 +351,7 @@ function RevealOnceModal({
             margin: 0,
             padding: 12,
             background: "var(--surface-2)",
-            borderRadius: 8,
+            borderRadius: "var(--r-4)",
             fontSize: 12,
             wordBreak: "break-all",
             whiteSpace: "pre-wrap",

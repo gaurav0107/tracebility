@@ -18,11 +18,18 @@ V1 boundaries:
   - We don't store IdP user IDs. Two IdPs issuing for the same
     email would both sign that user in — that's the expected
     semantics for a corporate setup with one IdP per workspace.
-  - JWKS / id_token signature verification is skipped in v1.
-    The token endpoint runs over TLS to a configured issuer so an
-    attacker would have to MITM an HTTPS connection to a known IdP
-    to bypass — out of scope for the bootstrap. The next iteration
-    pulls keys from `jwks_uri` and validates RS256 signatures.
+  - The id_token is verified: we fetch keys from the IdP's
+    `jwks_uri` and validate the signature (RS/ES family), the
+    `iss`/`aud`/`exp` claims, and the per-request `nonce`, and we
+    require `email_verified` to not be false before trusting the
+    email claim.
+  - Cross-tenant guard: a workspace's SSO may auto-provision a NEW
+    app_user (email not yet known) but may only sign in a
+    PRE-EXISTING app_user if that user is already a member of this
+    workspace. Otherwise a workspace admin could point SSO at an
+    IdP they control and mint a session for any global account by
+    email — a cross-tenant account takeover. Existing non-members
+    must be invited through /members first.
 """
 
 from __future__ import annotations
@@ -44,6 +51,8 @@ import asyncpg
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
+from jose import jwt as jose_jwt
+from jose.exceptions import JWTError
 from pydantic import BaseModel, Field
 
 from .. import audit
@@ -370,6 +379,7 @@ async def sso_start(
     auth_endpoint, token_endpoint, jwks_uri = await _ensure_discovery(pool, cfg)
 
     state = secrets.token_urlsafe(32)
+    nonce = secrets.token_urlsafe(32)
     code_verifier = secrets.token_urlsafe(48)
     code_challenge = (
         base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode("ascii")).digest())
@@ -388,12 +398,13 @@ async def sso_start(
     expires_at = datetime.now(UTC) + timedelta(seconds=_STATE_TTL_SECONDS)
     await pool.execute(
         """
-        insert into sso_state (state, workspace_id, code_verifier, redirect_uri, return_to, expires_at)
-        values ($1, $2, $3, $4, $5, $6)
+        insert into sso_state (state, workspace_id, code_verifier, nonce, redirect_uri, return_to, expires_at)
+        values ($1, $2, $3, $4, $5, $6, $7)
         """,
         state,
         cfg["workspace_id"],
         code_verifier,
+        nonce,
         redirect_uri,
         _safe_return_to(return_to, settings),
         expires_at,
@@ -406,6 +417,7 @@ async def sso_start(
             "redirect_uri": redirect_uri,
             "scope": "openid email profile",
             "state": state,
+            "nonce": nonce,
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
         }
@@ -441,7 +453,7 @@ async def sso_callback(
         """
         delete from sso_state
          where state = $1
-         returning workspace_id, code_verifier, redirect_uri, return_to, expires_at
+         returning workspace_id, code_verifier, nonce, redirect_uri, return_to, expires_at
         """,
         state,
     )
@@ -454,7 +466,8 @@ async def sso_callback(
     cfg = await pool.fetchrow(
         """
         select id, issuer, client_id, client_secret_encrypted,
-               token_endpoint, auto_provision, default_role
+               authorization_endpoint, token_endpoint, jwks_uri,
+               auto_provision, default_role
           from workspace_sso_config
          where workspace_id = $1 and enabled = true
         """,
@@ -462,15 +475,10 @@ async def sso_callback(
     )
     if cfg is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "sso disabled for this workspace")
-    token_endpoint = cfg["token_endpoint"]
-    if not token_endpoint:
-        # Re-discover if the cached endpoint went missing (e.g. after
-        # an issuer rotation).
-        await _ensure_discovery(pool, cfg)
-        token_endpoint = await pool.fetchval(
-            "select token_endpoint from workspace_sso_config where id = $1",
-            cfg["id"],
-        )
+    # Resolve token + jwks endpoints (re-discovers if a cached endpoint
+    # went missing, e.g. after an issuer rotation). We need jwks_uri to
+    # verify the id_token signature, so discovery must yield all three.
+    _auth_endpoint, token_endpoint, jwks_uri = await _ensure_discovery(pool, cfg)
     if not token_endpoint:
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY,
@@ -500,7 +508,32 @@ async def sso_callback(
             status.HTTP_502_BAD_GATEWAY,
             "id_token missing from oidc token response",
         )
-    claims = _decode_id_token_payload(id_token)
+    if not jwks_uri:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            "could not resolve jwks_uri for id_token verification",
+        )
+    try:
+        jwks = await asyncio.to_thread(_http_get_json, jwks_uri)
+    except RuntimeError as exc:
+        log.warning("oidc jwks fetch failed", error=str(exc))
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "could not fetch jwks") from exc
+
+    claims = _verify_id_token(
+        id_token,
+        jwks=jwks,
+        issuer=cfg["issuer"].rstrip("/"),
+        client_id=cfg["client_id"],
+        nonce=state_row["nonce"],
+    )
+    # Only trust the email if the IdP asserts it is verified. An IdP
+    # that omits the claim (some enterprise providers) is trusted;
+    # an explicit `false` is rejected.
+    if claims.get("email_verified") is False:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "id_token email is not verified by the IdP",
+        )
     email_v = claims.get("email")
     if not isinstance(email_v, str) or "@" not in email_v:
         raise HTTPException(
@@ -564,7 +597,9 @@ async def _ensure_discovery(pool: asyncpg.Pool, cfg: asyncpg.Record) -> tuple[st
     auth = cfg["authorization_endpoint"]
     token = cfg["token_endpoint"]
     jwks = cfg["jwks_uri"]
-    if auth and token:
+    # Require jwks_uri too: the callback needs it to verify id_token
+    # signatures, so a cached row missing it must re-discover.
+    if auth and token and jwks:
         return auth, token, jwks
 
     issuer = cfg["issuer"].rstrip("/")
@@ -579,10 +614,13 @@ async def _ensure_discovery(pool: asyncpg.Pool, cfg: asyncpg.Record) -> tuple[st
     auth = data.get("authorization_endpoint")
     token = data.get("token_endpoint")
     jwks = data.get("jwks_uri")
-    if not isinstance(auth, str) or not isinstance(token, str):
+    # jwks_uri is REQUIRED by the OIDC discovery spec; without it we
+    # cannot verify the id_token, so refuse rather than fall back to an
+    # unverified token.
+    if not isinstance(auth, str) or not isinstance(token, str) or not isinstance(jwks, str):
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY,
-            "oidc discovery missing endpoints",
+            "oidc discovery missing endpoints (authorization/token/jwks_uri)",
         )
 
     await pool.execute(
@@ -596,9 +634,9 @@ async def _ensure_discovery(pool: asyncpg.Pool, cfg: asyncpg.Record) -> tuple[st
         cfg["id"],
         auth,
         token,
-        jwks if isinstance(jwks, str) else None,
+        jwks,
     )
-    return auth, token, jwks if isinstance(jwks, str) else None
+    return auth, token, jwks
 
 
 def _http_get_json(url: str) -> dict[str, Any]:
@@ -653,25 +691,83 @@ def _exchange_code(
     return data
 
 
-def _decode_id_token_payload(id_token: str) -> dict[str, Any]:
-    """Decode the JWT payload without signature verification.
+# Asymmetric signing algorithms we accept for id_tokens. `none` and the
+# HMAC (`HS*`) family are deliberately excluded — an attacker who could
+# set `alg: none` or sign with the (public) client_secret would bypass
+# verification entirely.
+_ALLOWED_ID_TOKEN_ALGS = frozenset({"RS256", "RS384", "RS512", "ES256", "ES384", "ES512"})
 
-    See module docstring for why signature verification is deferred.
+
+def _verify_id_token(
+    id_token: str,
+    *,
+    jwks: dict[str, Any],
+    issuer: str,
+    client_id: str,
+    nonce: str | None,
+) -> dict[str, Any]:
+    """Verify an OIDC id_token and return its claims.
+
+    Validates the signature against the IdP's published JWKS and checks
+    the `iss`, `aud`, `exp` and `nonce` claims. Raises HTTP 400 on any
+    verification failure.
     """
-    parts = id_token.split(".")
-    if len(parts) != 3:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "id_token is not a JWT")
-    raw = parts[1]
-    # JWT base64url is unpadded; pad before decode.
-    padded = raw + "=" * ((4 - len(raw) % 4) % 4)
     try:
-        decoded = base64.urlsafe_b64decode(padded)
-    except (ValueError, base64.binascii.Error) as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "id_token payload not base64url") from exc
+        header = jose_jwt.get_unverified_header(id_token)
+    except JWTError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "id_token header invalid") from exc
+
+    alg = header.get("alg")
+    if alg not in _ALLOWED_ID_TOKEN_ALGS:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"unsupported id_token signing alg: {alg}",
+        )
+
+    keys = jwks.get("keys") if isinstance(jwks, dict) else None
+    if not isinstance(keys, list) or not keys:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "jwks has no keys")
+    kid = header.get("kid")
+    signing_key: dict[str, Any] | None = None
+    for candidate in keys:
+        if not isinstance(candidate, dict):
+            continue
+        if kid is None or candidate.get("kid") == kid:
+            signing_key = candidate
+            break
+    if signing_key is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "no matching jwks key for id_token",
+        )
+
     try:
-        return _json.loads(decoded)
-    except _json.JSONDecodeError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "id_token payload not JSON") from exc
+        claims: dict[str, Any] = jose_jwt.decode(
+            id_token,
+            signing_key,
+            algorithms=[alg],
+            audience=client_id,
+            issuer=issuer,
+            options={
+                "verify_signature": True,
+                "verify_aud": True,
+                "verify_iss": True,
+                "verify_exp": True,
+                # id_tokens don't carry an at_hash unless an access_token
+                # is bound; we validate the token directly, not the hash.
+                "verify_at_hash": False,
+            },
+        )
+    except JWTError as exc:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"id_token verification failed: {exc}",
+        ) from exc
+
+    if nonce is not None and claims.get("nonce") != nonce:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "id_token nonce mismatch")
+
+    return claims
 
 
 async def _resolve_or_provision_user(
@@ -711,6 +807,25 @@ async def _resolve_or_provision_user(
             )
             assert user_row is not None
         else:
+            # SECURITY (cross-tenant account takeover guard): a workspace's
+            # SSO may only sign in a PRE-EXISTING app_user if that user is
+            # already a member of THIS workspace. Without this check, a
+            # workspace admin could configure SSO to point at an IdP they
+            # control, assert any victim's email, and mint a full session
+            # for that global account (granting access to every workspace
+            # the victim belongs to). Existing accounts must be invited via
+            # /members before they can use this workspace's SSO.
+            is_member = await conn.fetchval(
+                "select 1 from workspace_member where workspace_id = $1 and user_id = $2",
+                workspace_id,
+                existing["id"],
+            )
+            if not is_member:
+                raise HTTPException(
+                    status.HTTP_403_FORBIDDEN,
+                    "an account with this email already exists; a workspace "
+                    "admin must invite it before it can sign in via SSO",
+                )
             user_row = {
                 "id": existing["id"],
                 "email": existing["email"],

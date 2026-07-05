@@ -128,7 +128,7 @@ def test_mismatched_enum_types_are_illegal():
 
 
 def test_postgres_backtest_migration_exists_and_defines_tables():
-    path = REPO_ROOT / "schemas" / "postgres" / "migrations" / "0028_backtest.sql"
+    path = REPO_ROOT / "schemas" / "postgres" / "migrations" / "0029_backtest.sql"
     assert path.exists(), f"expected migration at {path}"
     sql = path.read_text().lower()
     assert "create table if not exists backtest_draft" in sql
@@ -138,7 +138,7 @@ def test_postgres_backtest_migration_exists_and_defines_tables():
 
 
 def test_clickhouse_backtest_migration_exists_and_defines_table():
-    path = REPO_ROOT / "schemas" / "clickhouse" / "0008_backtest_score.sql"
+    path = REPO_ROOT / "schemas" / "clickhouse" / "0009_backtest_score.sql"
     assert path.exists(), f"expected migration at {path}"
     sql = path.read_text().lower()
     assert "create table if not exists backtest_score" in sql

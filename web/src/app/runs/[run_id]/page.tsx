@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ReplayDiffClient } from "@/components/ReplayDiffClient";
 import { Shell } from "@/components/Shell";
 import { apiGet } from "@/lib/api";
 import { resolveActiveProject } from "@/lib/projects";
@@ -175,37 +176,42 @@ export default async function RunDetailPage({
         style={{
           display: "flex",
           flexDirection: "column",
-          height: "100%",
           minHeight: 0,
+          gap: 18,
         }}
       >
         <RunHeader run={run} spanCount={spans.length} />
         <div
           style={{
             display: "grid",
-            gridTemplateColumns:
-              "var(--tracepane-l) 1fr var(--tracepane-r)",
-            flex: 1,
-            minHeight: 0,
-            overflow: "hidden",
+            gridTemplateColumns: "1fr 400px",
+            gap: 18,
+            alignItems: "start",
+            minWidth: 0,
           }}
         >
-          <SpanTreePane
-            runId={run.run_id}
-            nodes={flat}
-            selectedSpanId={selectedSpan?.span_id ?? null}
-            error={spansRes.error}
-          />
-          <TimelinePane
-            run={run}
-            nodes={flat}
-            runId={run.run_id}
-            selectedSpanId={selectedSpan?.span_id ?? null}
-          />
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 18,
+              minWidth: 0,
+            }}
+          >
+            <TimelinePane
+              run={run}
+              nodes={flat}
+              runId={run.run_id}
+              selectedSpanId={selectedSpan?.span_id ?? null}
+              error={spansRes.error}
+            />
+          </div>
           <InspectorPane
             run={run}
             span={selectedSpan}
             captures={captures}
+            spans={spans}
+            projectId={active.id}
             capture={
               selectedSpan
                 ? capturesBySpanId.get(selectedSpan.span_id) ?? null
@@ -220,14 +226,14 @@ export default async function RunDetailPage({
 
 function RunHeader({ run, spanCount }: { run: Run; spanCount: number }) {
   return (
-    <header
+    <div
+      className="card"
       style={{
-        padding: "16px 20px",
-        borderBottom: "1px solid var(--border)",
-        background: "var(--surface)",
+        padding: "20px 24px",
         display: "flex",
         flexDirection: "column",
-        gap: 12,
+        gap: 16,
+        flexShrink: 0,
       }}
     >
       <div
@@ -238,15 +244,32 @@ function RunHeader({ run, spanCount }: { run: Run; spanCount: number }) {
           flexWrap: "wrap",
         }}
       >
-        <h1 style={{ fontSize: 16 }}>{run.name || "(unnamed run)"}</h1>
-        <StatusPill status={run.status} />
+        <h1
+          style={{
+            fontSize: 20,
+            fontWeight: 800,
+            letterSpacing: "-0.02em",
+            margin: 0,
+          }}
+        >
+          {run.name || "(unnamed run)"}
+        </h1>
         <KindBadge kind={run.kind} />
+        <StatusPill status={run.status} />
+        <span style={{ flex: 1 }} />
         <span
           className="mono"
-          style={{ fontSize: 11, color: "var(--text-3)", marginLeft: "auto" }}
+          style={{ fontSize: 11.5, color: "var(--text-4)" }}
         >
           {run.run_id}
         </span>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          style={{ borderRadius: "var(--r-pill)" }}
+        >
+          replay
+        </button>
       </div>
       <div
         style={{
@@ -279,172 +302,64 @@ function RunHeader({ run, spanCount }: { run: Run; spanCount: number }) {
       {run.error_kind || run.error_message ? (
         <div
           style={{
-            padding: "8px 12px",
-            background: "var(--danger-soft)",
-            color: "var(--danger)",
-            fontSize: 12,
-            borderRadius: "var(--r-2)",
+            border: "1px solid #F4DBD6",
+            background: "#FDF1EF",
+            borderRadius: 12,
+            padding: "10px 16px",
             display: "flex",
-            gap: 10,
-            alignItems: "baseline",
+            alignItems: "center",
+            gap: 12,
           }}
         >
           <span
-            className="mono"
             style={{
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
               fontSize: 11,
+              fontWeight: 700,
+              color: "var(--danger)",
+              background: "var(--surface)",
+              borderRadius: "var(--r-pill)",
+              padding: "3px 10px",
+              flexShrink: 0,
             }}
           >
             {run.error_kind || "error"}
           </span>
-          <span>{run.error_message}</span>
+          {run.error_message ? (
+            <span
+              className="mono"
+              style={{ fontSize: 12, color: "var(--danger)" }}
+            >
+              {run.error_message}
+            </span>
+          ) : null}
+          <span style={{ flex: 1 }} />
         </div>
       ) : null}
-    </header>
+    </div>
   );
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <span
         style={{
-          fontSize: 11,
-          fontWeight: 500,
+          fontSize: 10.5,
+          fontWeight: 700,
           textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          color: "var(--text-3)",
+          letterSpacing: "0.08em",
+          color: "var(--text-4)",
         }}
       >
         {label}
       </span>
       <span
         className="mono num"
-        style={{ fontSize: 14, color: "var(--text)" }}
+        style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text)" }}
       >
         {value}
       </span>
     </div>
-  );
-}
-
-function SpanTreePane({
-  runId,
-  nodes,
-  selectedSpanId,
-  error,
-}: {
-  runId: string;
-  nodes: SpanNode[];
-  selectedSpanId: string | null;
-  error: string | null;
-}) {
-  return (
-    <aside
-      style={{
-        borderRight: "1px solid var(--border)",
-        background: "var(--surface)",
-        overflow: "auto",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <div
-        style={{
-          padding: "12px 16px",
-          borderBottom: "1px solid var(--border)",
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-        }}
-      >
-        <h2>Spans</h2>
-        <span
-          className="mono"
-          style={{ fontSize: 11, color: "var(--text-3)" }}
-        >
-          {nodes.length}
-        </span>
-      </div>
-      {nodes.length === 0 ? (
-        <div
-          style={{
-            padding: 24,
-            color: "var(--text-3)",
-            fontSize: 13,
-          }}
-        >
-          No spans recorded for this run.
-        </div>
-      ) : (
-        <div>
-          {nodes.map(({ span, depth }) => {
-            const selected = span.span_id === selectedSpanId;
-            return (
-              <Link
-                key={span.span_id}
-                href={`/runs/${runId}?span=${span.span_id}`}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr auto",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "8px 16px",
-                  paddingLeft: 16 + depth * 14,
-                  borderBottom: "1px solid var(--border)",
-                  background: selected ? "var(--surface-3)" : "transparent",
-                  color: "var(--text)",
-                  textDecoration: "none",
-                  fontSize: 13,
-                }}
-              >
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    overflow: "hidden",
-                  }}
-                >
-                  <StatusDot status={span.status} />
-                  <span
-                    style={{
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {span.name || "(unnamed)"}
-                  </span>
-                </span>
-                <span
-                  className="mono num"
-                  style={{ fontSize: 11, color: "var(--text-3)" }}
-                >
-                  {fmtLatency(span.latency_ms)}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-      {error ? (
-        <div
-          style={{
-            margin: "12px 16px",
-            padding: "8px 12px",
-            background: "var(--danger-soft)",
-            color: "var(--danger)",
-            fontSize: 11,
-            borderRadius: "var(--r-2)",
-          }}
-        >
-          spans unavailable: {error}
-        </div>
-      ) : null}
-    </aside>
   );
 }
 
@@ -453,68 +368,72 @@ function TimelinePane({
   nodes,
   runId,
   selectedSpanId,
+  error,
 }: {
   run: Run;
   nodes: SpanNode[];
   runId: string;
   selectedSpanId: string | null;
+  error: string | null;
 }) {
   const window = computeWindow(run, nodes);
+  const empty = nodes.length === 0 || window.totalMs <= 0;
   return (
-    <section
-      style={{
-        background: "var(--bg)",
-        overflow: "auto",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <div className="card" style={{ overflow: "hidden" }}>
       <div
         style={{
-          padding: "12px 16px",
-          borderBottom: "1px solid var(--border)",
-          background: "var(--surface)",
           display: "flex",
           alignItems: "baseline",
-          justifyContent: "space-between",
+          gap: 10,
+          padding: "18px 24px 12px",
         }}
       >
-        <h2>Timeline</h2>
-        <span
-          className="mono"
-          style={{ fontSize: 11, color: "var(--text-3)" }}
-        >
-          {window.totalMs > 0 ? `${fmtLatency(window.totalMs)} window` : "—"}
+        <span className="card-title">spans</span>
+        <span className="card-sub">
+          {nodes.length}
+          {window.totalMs > 0 ? ` · ${fmtLatency(window.totalMs)} window` : ""}
         </span>
       </div>
-      {nodes.length === 0 || window.totalMs <= 0 ? (
+      {empty ? (
         <div
           style={{
-            padding: 24,
+            padding: "0 24px 20px",
             color: "var(--text-3)",
             fontSize: 13,
           }}
         >
-          No timeline data.
+          No spans recorded for this run.
         </div>
       ) : (
-        <div style={{ padding: "12px 16px" }}>
+        <>
           <TimeAxis totalMs={window.totalMs} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {nodes.map(({ span, depth }) => (
-              <TimelineRow
-                key={span.span_id}
-                runId={runId}
-                span={span}
-                depth={depth}
-                window={window}
-                selected={span.span_id === selectedSpanId}
-              />
-            ))}
-          </div>
-        </div>
+          {nodes.map(({ span, depth }) => (
+            <TimelineRow
+              key={span.span_id}
+              runId={runId}
+              span={span}
+              depth={depth}
+              window={window}
+              selected={span.span_id === selectedSpanId}
+            />
+          ))}
+        </>
       )}
-    </section>
+      {error ? (
+        <div
+          style={{
+            margin: "12px 24px 20px",
+            padding: "8px 12px",
+            background: "var(--danger-soft)",
+            color: "var(--danger)",
+            fontSize: 11,
+            borderRadius: "var(--r-3)",
+          }}
+        >
+          spans unavailable: {error}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -523,27 +442,28 @@ function TimeAxis({ totalMs }: { totalMs: number }) {
   return (
     <div
       style={{
-        position: "relative",
-        height: 20,
-        marginBottom: 8,
-        borderBottom: "1px solid var(--border)",
+        display: "grid",
+        gridTemplateColumns: "250px 1fr 64px",
+        gap: 16,
+        padding: "0 24px 8px",
+        borderBottom: "1px solid var(--divider)",
       }}
     >
-      {ticks.map((t) => (
-        <span
-          key={t}
-          className="mono"
-          style={{
-            position: "absolute",
-            left: `${t * 100}%`,
-            transform: t === 1 ? "translateX(-100%)" : "translateX(0)",
-            fontSize: 10,
-            color: "var(--text-3)",
-          }}
-        >
-          {fmtLatency(totalMs * t)}
-        </span>
-      ))}
+      <span />
+      <span
+        className="mono"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: 10,
+          color: "var(--text-4)",
+        }}
+      >
+        {ticks.map((t) => (
+          <span key={t}>{fmtLatency(totalMs * t)}</span>
+        ))}
+      </span>
+      <span />
     </div>
   );
 }
@@ -573,72 +493,72 @@ function TimelineRow({
     window.totalMs > 0
       ? Math.max(0.5, ((endMs - startMs) / window.totalMs) * 100)
       : 0;
-  const barColor = barColorForKind(span.kind);
+  const bar = waterfallBarColor(span);
   return (
     <Link
       href={`/runs/${runId}?span=${span.span_id}`}
       style={{
         display: "grid",
-        gridTemplateColumns: "200px 1fr 70px",
+        gridTemplateColumns: "250px 1fr 64px",
         alignItems: "center",
-        gap: 12,
-        padding: "4px 8px",
-        borderRadius: "var(--r-2)",
-        background: selected ? "var(--surface-3)" : "transparent",
+        gap: 16,
+        height: 46,
+        padding: "0 24px",
+        borderBottom: "1px solid var(--divider-row)",
+        background: selected ? "rgba(4,133,247,0.06)" : "transparent",
         color: "var(--text)",
         textDecoration: "none",
-        fontSize: 12,
-        minHeight: 28,
       }}
     >
       <span
         style={{
-          paddingLeft: depth * 12,
-          display: "inline-flex",
+          display: "flex",
           alignItems: "center",
-          gap: 6,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
+          gap: 8,
+          minWidth: 0,
+          paddingLeft: depth * 18,
         }}
       >
-        <StatusDot status={span.status} />
+        <KindBadge kind={span.kind} />
         <span
+          className="mono"
           style={{
+            fontSize: 12,
+            fontWeight: 600,
+            whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
           }}
         >
           {span.name || "(unnamed)"}
         </span>
       </span>
-      <div
+      <span
         style={{
           position: "relative",
-          height: 14,
+          height: 16,
           background: "var(--surface-2)",
-          borderRadius: "var(--r-1)",
+          borderRadius: "var(--r-pill)",
+          display: "block",
         }}
       >
-        <div
+        <span
           style={{
             position: "absolute",
-            left: `${left}%`,
-            width: `${width}%`,
             top: 0,
             bottom: 0,
-            background: barColor.fill,
-            borderRadius: "var(--r-1)",
-            border: `1px solid ${barColor.stroke}`,
+            left: `${left}%`,
+            width: `${width}%`,
             minWidth: 2,
+            borderRadius: "var(--r-pill)",
+            background: bar,
           }}
         />
-      </div>
+      </span>
       <span
         className="mono num"
         style={{
-          fontSize: 11,
+          fontSize: 11.5,
           color: "var(--text-3)",
           textAlign: "right",
         }}
@@ -653,59 +573,38 @@ function InspectorPane({
   run,
   span,
   captures,
+  spans,
+  projectId,
   capture,
 }: {
   run: Run;
   span: Span | null;
   captures: ReplayCaptureList | null;
+  spans: Span[];
+  projectId: string;
   capture: ReplayCaptureItem | null;
 }) {
   return (
-    <aside
+    <div
+      className="card"
       style={{
-        borderLeft: "1px solid var(--border)",
-        background: "var(--surface)",
-        overflow: "auto",
+        padding: "20px 24px",
         display: "flex",
         flexDirection: "column",
+        gap: 16,
       }}
     >
-      <div
-        style={{
-          padding: "12px 16px",
-          borderBottom: "1px solid var(--border)",
-        }}
-      >
-        <h2>{span ? "Span" : "Run"}</h2>
-        <div
-          className="mono"
-          style={{
-            fontSize: 11,
-            color: "var(--text-3)",
-            marginTop: 2,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {span ? span.span_id : run.run_id}
-        </div>
-      </div>
-      <div
-        style={{
-          padding: 16,
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-        }}
-      >
-        {span ? (
-          <SpanInspector span={span} capture={capture} />
-        ) : (
-          <RunInspector run={run} captures={captures} />
-        )}
-      </div>
-    </aside>
+      {span ? (
+        <SpanInspector span={span} capture={capture} />
+      ) : (
+        <RunInspector
+          run={run}
+          captures={captures}
+          spans={spans}
+          projectId={projectId}
+        />
+      )}
+    </div>
   );
 }
 
@@ -718,15 +617,50 @@ function SpanInspector({
 }) {
   return (
     <>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <h3>{span.name || "(unnamed)"}</h3>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <span
+          className="mono"
+          style={{
+            fontSize: 11,
+            color: "var(--text-4)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {span.span_id}
+        </span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+          }}
+        >
+          <span
+            className="mono"
+            style={{
+              fontSize: 17,
+              fontWeight: 800,
+              letterSpacing: "-0.01em",
+            }}
+          >
+            {span.name || "(unnamed)"}
+          </span>
           <KindBadge kind={span.kind} />
           <StatusPill status={span.status} />
           {capture ? (
             <span
-              className="badge badge-neutral"
               title={`replay-capture · ${capture.kind} · ${capture.size_bytes} bytes`}
+              style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                color: "var(--text-2)",
+                background: "var(--surface-3)",
+                borderRadius: "var(--r-pill)",
+                padding: "3px 10px",
+              }}
             >
               replay-ready
             </span>
@@ -752,15 +686,19 @@ function SpanInspector({
       </KvList>
       {span.error_message ? (
         <div
+          className="mono"
           style={{
-            padding: "8px 12px",
-            background: "var(--danger-soft)",
+            border: "1px solid #F4DBD6",
+            background: "#FDF1EF",
+            borderRadius: 12,
+            padding: "10px 14px",
+            fontSize: 11.5,
+            lineHeight: 1.6,
             color: "var(--danger)",
-            fontSize: 12,
-            borderRadius: "var(--r-2)",
           }}
         >
-          <strong>{span.error_kind || "error"}:</strong> {span.error_message}
+          <b style={{ fontWeight: 600 }}>{span.error_kind || "error"}:</b>{" "}
+          {span.error_message}
         </div>
       ) : null}
       <Section label="inputs">
@@ -775,6 +713,22 @@ function SpanInspector({
         </Section>
       ) : null}
       {capture ? <CaptureBlock capture={capture} /> : null}
+      <div style={{ display: "flex", gap: 10, marginTop: 2 }}>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          style={{ borderRadius: "var(--r-pill)" }}
+        >
+          replay with edits
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm"
+          style={{ borderRadius: "var(--r-pill)" }}
+        >
+          add to dataset
+        </button>
+      </div>
     </>
   );
 }
@@ -796,15 +750,54 @@ function CaptureBlock({ capture }: { capture: ReplayCaptureItem }) {
 function RunInspector({
   run,
   captures,
+  spans,
+  projectId,
 }: {
   run: Run;
   captures: ReplayCaptureList | null;
+  spans: Span[];
+  projectId: string;
 }) {
+  const llmSpans = spans
+    .filter((s) => (s.kind || "").toLowerCase() === "llm")
+    .map((s) => ({
+      span_id: s.span_id,
+      name: s.name,
+      model: s.model,
+      temperature: s.temperature,
+    }));
   return (
     <>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <h3>{run.name || "(unnamed)"}</h3>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <span
+          className="mono"
+          style={{
+            fontSize: 11,
+            color: "var(--text-4)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {run.run_id}
+        </span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+          }}
+        >
+          <span
+            style={{
+              fontSize: 17,
+              fontWeight: 800,
+              letterSpacing: "-0.01em",
+            }}
+          >
+            {run.name || "(unnamed)"}
+          </span>
           <KindBadge kind={run.kind} />
           <StatusPill status={run.status} />
         </div>
@@ -838,6 +831,13 @@ function RunInspector({
         </Section>
       ) : null}
       {captures ? <ReplayPanel captures={captures} /> : null}
+      <Section label="replay & diff">
+        <ReplayDiffClient
+          runId={run.run_id}
+          projectId={projectId}
+          spans={llmSpans}
+        />
+      </Section>
     </>
   );
 }
@@ -868,8 +868,8 @@ function ReplayPanel({ captures }: { captures: ReplayCaptureList }) {
           </KvList>
           <div
             style={{
-              border: "1px solid var(--border)",
-              borderRadius: "var(--r-2)",
+              border: "1px solid var(--border-soft)",
+              borderRadius: "var(--r-4)",
               overflow: "hidden",
               background: "var(--surface)",
             }}
@@ -883,7 +883,7 @@ function ReplayPanel({ captures }: { captures: ReplayCaptureList }) {
                   gap: 8,
                   alignItems: "center",
                   padding: "6px 10px",
-                  borderBottom: "1px solid var(--border)",
+                  borderBottom: "1px solid var(--divider-row)",
                   fontSize: 11,
                 }}
               >
@@ -936,12 +936,8 @@ function KvList({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 0,
-        border: "1px solid var(--border)",
-        borderRadius: "var(--r-2)",
-        background: "var(--surface)",
+        border: "1px solid var(--border-soft)",
+        borderRadius: "var(--r-4)",
         overflow: "hidden",
       }}
     >
@@ -958,14 +954,14 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
       <span
         style={{
-          fontSize: 11,
-          fontWeight: 500,
+          fontSize: 10.5,
+          fontWeight: 700,
           textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          color: "var(--text-3)",
+          letterSpacing: "0.08em",
+          color: "var(--text-4)",
         }}
       >
         {label}
@@ -980,20 +976,20 @@ function Kv({ k, v }: { k: string; v: string }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "minmax(0, 90px) 1fr",
+        gridTemplateColumns: "110px 1fr",
         gap: 12,
-        padding: "8px 12px",
-        borderBottom: "1px solid var(--border)",
-        fontSize: 12,
+        alignItems: "center",
+        padding: "9px 14px",
+        borderBottom: "1px solid var(--divider-row)",
       }}
     >
       <span
         style={{
-          fontSize: 11,
-          fontWeight: 500,
+          fontSize: 10.5,
+          fontWeight: 700,
           textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          color: "var(--text-3)",
+          letterSpacing: "0.07em",
+          color: "var(--text-4)",
         }}
       >
         {k}
@@ -1001,6 +997,8 @@ function Kv({ k, v }: { k: string; v: string }) {
       <span
         className="mono"
         style={{
+          fontSize: 12,
+          fontWeight: 500,
           color: "var(--text)",
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -1030,8 +1028,8 @@ function Pre({ value }: { value: string }) {
     <pre
       className="code"
       style={{
-        fontSize: 11,
-        lineHeight: 1.5,
+        fontSize: 11.5,
+        lineHeight: 1.7,
         margin: 0,
         whiteSpace: "pre-wrap",
         wordBreak: "break-word",
@@ -1050,10 +1048,16 @@ function KindBadge({ kind }: { kind: string }) {
       ? "kind-llm"
       : k === "tool"
         ? "kind-tool"
-        : k === "retriever" || k === "retr"
+        : k === "retriever" || k === "retr" || k === "reranker"
           ? "kind-retr"
-          : "kind-chain";
-  return <span className={`kind-badge ${cls}`}>{kind || "chain"}</span>;
+          : k === "agent"
+            ? "kind-agent"
+            : "kind-chain";
+  const label =
+    k === "retriever" || k === "retr" || k === "reranker"
+      ? "retr"
+      : kind || "chain";
+  return <span className={`kind-badge ${cls}`}>{label}</span>;
 }
 
 function StatusPill({ status }: { status: Status }) {
@@ -1075,16 +1079,6 @@ function StatusPill({ status }: { status: Status }) {
       {status}
     </span>
   );
-}
-
-function StatusDot({ status }: { status: Status }) {
-  const cls =
-    status === "ok"
-      ? "dot dot-success"
-      : status === "error"
-        ? "dot dot-danger"
-        : "dot dot-warn";
-  return <span className={cls} aria-hidden />;
 }
 
 interface TimelineWindow {
@@ -1112,15 +1106,13 @@ function computeWindow(run: Run, nodes: SpanNode[]): TimelineWindow {
   return { startMs, endMs, totalMs };
 }
 
-function barColorForKind(kind: string): { fill: string; stroke: string } {
-  const k = (kind || "").toLowerCase();
-  if (k === "llm")
-    return { fill: "var(--kind-llm-bg)", stroke: "var(--kind-llm)" };
-  if (k === "tool")
-    return { fill: "var(--kind-tool-bg)", stroke: "var(--kind-tool)" };
-  if (k === "retriever" || k === "retr")
-    return { fill: "var(--kind-retr-bg)", stroke: "var(--kind-retr)" };
-  return { fill: "var(--kind-chain-bg)", stroke: "var(--kind-chain)" };
+function waterfallBarColor(span: Span): string {
+  if (span.status === "error") return "#E05545";
+  const k = (span.kind || "").toLowerCase();
+  if (k === "llm") return "#D89B3C";
+  if (k === "tool") return "#3FA3D6";
+  if (k === "retriever" || k === "retr" || k === "reranker") return "#4CB584";
+  return "#9B79E4";
 }
 
 function buildTree(spans: Span[]): SpanNode[] {

@@ -1,12 +1,5 @@
 "use client";
 
-import {
-  CheckSquare,
-  Database,
-  PencilLine,
-  Square,
-  X,
-} from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   createContext,
@@ -110,6 +103,33 @@ function useBulk(): BulkContextValue {
 // Per-row checkbox + header "select all visible" checkbox
 // ---------------------------------------------------------------------------
 
+// Target checkbox: 16px rounded-6px box, 1.5px border, checked = accent fill
+// + white check mark. Shared by the per-row and header checkboxes.
+function CheckBox({ checked }: { checked: boolean }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: "inline-grid",
+        placeItems: "center",
+        width: 16,
+        height: 16,
+        borderRadius: 6,
+        border: `1.5px solid ${
+          checked ? "var(--accent)" : "var(--border-muted)"
+        }`,
+        background: checked ? "var(--accent)" : "var(--surface)",
+        color: "#FFFFFF",
+        fontSize: 10,
+        fontWeight: 700,
+        lineHeight: 1,
+      }}
+    >
+      {checked ? "✓" : ""}
+    </span>
+  );
+}
+
 export function RunCheckbox({ runId }: { runId: string }) {
   const { selected, toggle } = useBulk();
   const checked = selected.has(runId);
@@ -127,11 +147,10 @@ export function RunCheckbox({ runId }: { runId: string }) {
         border: 0,
         cursor: "pointer",
         padding: 0,
-        color: checked ? "var(--accent)" : "var(--text-3)",
         display: "inline-flex",
       }}
     >
-      {checked ? <CheckSquare size={14} /> : <Square size={14} />}
+      <CheckBox checked={checked} />
     </button>
   );
 }
@@ -160,11 +179,10 @@ export function SelectAllVisibleCheckbox({
         border: 0,
         cursor: "pointer",
         padding: 0,
-        color: allChecked ? "var(--accent)" : "var(--text-3)",
         display: "inline-flex",
       }}
     >
-      {allChecked ? <CheckSquare size={14} /> : <Square size={14} />}
+      <CheckBox checked={allChecked} />
     </button>
   );
 }
@@ -268,54 +286,62 @@ export function BulkActionBar({
     <div
       role="region"
       aria-label="bulk actions"
-      className="card"
       style={{
-        position: "sticky",
-        bottom: 16,
-        marginTop: 8,
-        padding: 12,
+        position: "fixed",
+        bottom: 26,
+        left: "calc(50% + 118px)",
+        transform: "translateX(-50%)",
         display: "flex",
         alignItems: "center",
-        gap: 12,
+        gap: 6,
         flexWrap: "wrap",
-        boxShadow: "var(--shadow-1, 0 4px 16px rgba(10,10,10,0.08))",
-        zIndex: 10,
+        maxWidth: "calc(100vw - 320px)",
+        background: "#0C0C10",
+        borderRadius: "var(--r-pill)",
+        padding: "8px 8px 8px 20px",
+        boxShadow: "var(--shadow-bulkbar)",
+        zIndex: 40,
       }}
     >
       <span
-        style={{
-          fontSize: 13,
-          color: "var(--text-2)",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-        }}
+        className="mono"
+        style={{ fontSize: 12, fontWeight: 600, color: "#FFFFFF" }}
       >
-        <span
-          className="badge badge-success"
-          style={{ fontSize: 11, paddingInline: 8 }}
-        >
-          {count}
-        </span>
-        selected
+        {count} selected
       </span>
+      <span
+        aria-hidden
+        style={{
+          width: 1,
+          height: 18,
+          background: "rgba(255,255,255,0.14)",
+          margin: "0 8px",
+        }}
+      />
       <button
         type="button"
-        className={mode === "dataset" ? "btn btn-primary" : "btn btn-ghost"}
         onClick={() => setMode(mode === "dataset" ? null : "dataset")}
         disabled={datasets.length === 0}
         title={
           datasets.length === 0 ? "create a dataset first" : "add to dataset"
         }
-        style={{ fontSize: 12 }}
+        style={{
+          fontSize: 12.5,
+          fontWeight: 600,
+          color: mode === "dataset" ? "#FFFFFF" : "#D6D6D1",
+          background:
+            mode === "dataset" ? "rgba(255,255,255,0.08)" : "transparent",
+          border: 0,
+          borderRadius: "var(--r-pill)",
+          padding: "7px 14px",
+          cursor: datasets.length === 0 ? "not-allowed" : "pointer",
+          opacity: datasets.length === 0 ? 0.4 : 1,
+        }}
       >
-        <Database size={13} /> Add to dataset
+        add to dataset
       </button>
       <button
         type="button"
-        className={
-          mode === "annotation" ? "btn btn-primary" : "btn btn-ghost"
-        }
         onClick={() => setMode(mode === "annotation" ? null : "annotation")}
         disabled={queues.length === 0}
         title={
@@ -323,15 +349,35 @@ export function BulkActionBar({
             ? "create an annotation queue first"
             : "send to annotation queue"
         }
-        style={{ fontSize: 12 }}
+        style={{
+          fontSize: 12.5,
+          fontWeight: 600,
+          color: mode === "annotation" ? "#FFFFFF" : "#D6D6D1",
+          background:
+            mode === "annotation" ? "rgba(255,255,255,0.08)" : "transparent",
+          border: 0,
+          borderRadius: "var(--r-pill)",
+          padding: "7px 14px",
+          cursor: queues.length === 0 ? "not-allowed" : "pointer",
+          opacity: queues.length === 0 ? 0.4 : 1,
+        }}
       >
-        <PencilLine size={13} /> Send to queue
+        annotate
       </button>
       {mode === "dataset" ? (
         <select
           value={datasetId}
           onChange={(e) => setDatasetId(e.target.value)}
-          style={{ minWidth: 220 }}
+          className="mono"
+          style={{
+            minWidth: 200,
+            fontSize: 12,
+            color: "#FFFFFF",
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.14)",
+            borderRadius: "var(--r-pill)",
+            padding: "6px 14px",
+          }}
         >
           {datasets.map((d) => (
             <option key={d.id} value={d.id}>
@@ -344,7 +390,16 @@ export function BulkActionBar({
         <select
           value={queueId}
           onChange={(e) => setQueueId(e.target.value)}
-          style={{ minWidth: 220 }}
+          className="mono"
+          style={{
+            minWidth: 200,
+            fontSize: 12,
+            color: "#FFFFFF",
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.14)",
+            borderRadius: "var(--r-pill)",
+            padding: "6px 14px",
+          }}
         >
           {queues.map((q) => (
             <option key={q.id} value={q.id}>
@@ -356,19 +411,28 @@ export function BulkActionBar({
       {mode != null ? (
         <button
           type="button"
-          className="btn btn-primary"
           onClick={submit}
           disabled={pending}
-          style={{ fontSize: 12 }}
+          style={{
+            fontSize: 12.5,
+            fontWeight: 700,
+            color: "#FFFFFF",
+            background: "var(--accent)",
+            border: 0,
+            borderRadius: "var(--r-pill)",
+            padding: "7px 18px",
+            cursor: pending ? "not-allowed" : "pointer",
+            opacity: pending ? 0.7 : 1,
+            boxShadow: "0 4px 14px rgba(4,133,247,0.4)",
+          }}
         >
-          {pending ? "applying…" : "Apply"}
+          {pending ? "applying…" : "apply"}
         </button>
       ) : null}
-      <span style={{ flex: 1 }} />
       {summary ? (
         <span
           className="mono"
-          style={{ fontSize: 12, color: "var(--success, #1f7a3a)" }}
+          style={{ fontSize: 11.5, color: "#5FD08A", padding: "0 6px" }}
         >
           {summary}
         </span>
@@ -376,24 +440,33 @@ export function BulkActionBar({
       {error ? (
         <span
           className="mono"
-          style={{ fontSize: 12, color: "var(--danger)" }}
+          style={{ fontSize: 11.5, color: "#F08A7E", padding: "0 6px" }}
         >
           {error}
         </span>
       ) : null}
       <button
         type="button"
-        className="btn btn-ghost"
+        aria-label="clear selection"
+        title="clear selection"
         onClick={() => {
           clear();
           setMode(null);
           setSummary(null);
           setError(null);
         }}
-        style={{ fontSize: 12 }}
-        title="clear selection"
+        style={{
+          fontSize: 13,
+          lineHeight: 1,
+          color: "#6E6E78",
+          background: "transparent",
+          border: 0,
+          borderRadius: "var(--r-pill)",
+          padding: "7px 10px",
+          cursor: "pointer",
+        }}
       >
-        <X size={13} /> Clear
+        ✕
       </button>
     </div>
   );

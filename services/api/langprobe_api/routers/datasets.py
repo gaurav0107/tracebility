@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field
 from .. import audit
 from ..auth import Principal, assert_workspace_role, require_user
 from ..clickhouse_client import ClickHouseQuery
+from ..tenant_scope import resolve_tenant_ids
 
 log = structlog.get_logger("langprobe.api.datasets")
 
@@ -329,6 +330,7 @@ async def create_item(
         allowed=("owner", "admin", "member"),
     )
     ch = _require_clickhouse(request)
+    org_id, workspace_id = await resolve_tenant_ids(pool, dataset["project_id"])
 
     item_id = uuid4()
     created_at = datetime.utcnow()
@@ -339,6 +341,8 @@ async def create_item(
             "dataset_item",
             [
                 (
+                    str(org_id),
+                    str(workspace_id),
                     str(dataset["project_id"]),
                     str(dataset_id),
                     str(item_id),
@@ -352,6 +356,8 @@ async def create_item(
                 )
             ],
             column_names=[
+                "org_id",
+                "workspace_id",
                 "project_id",
                 "dataset_id",
                 "item_id",

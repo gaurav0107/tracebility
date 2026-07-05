@@ -251,18 +251,7 @@ export function ProjectSettingsForm({ project }: { project: ProjectSettings }) {
 
         <label className="field" style={{ maxWidth: 280 }}>
           <span className="field-label">Eval cost ceiling</span>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              border: "1px solid var(--border)",
-              borderRadius: "var(--r-2)",
-              padding: "0 10px",
-              background: "var(--surface)",
-              transition: "border-color 120ms",
-            }}
-          >
+          <div className="input-shell">
             <span
               className="mono"
               style={{ color: "var(--text-3)", fontSize: 13 }}
@@ -277,12 +266,6 @@ export function ProjectSettingsForm({ project }: { project: ProjectSettings }) {
               onChange={(e) => setCostCeiling(e.target.value)}
               className="mono"
               disabled={pending}
-              style={{
-                border: 0,
-                padding: "8px 0",
-                background: "transparent",
-                width: "100%",
-              }}
             />
             <span
               style={{
@@ -349,7 +332,7 @@ function PiiConfirmInline({
         padding: 12,
         background: "var(--warn-soft)",
         border: "1px solid var(--warn)",
-        borderRadius: "var(--r-2)",
+        borderRadius: "var(--r-4)",
         color: "var(--warn)",
         fontSize: 12,
         lineHeight: 1.55,

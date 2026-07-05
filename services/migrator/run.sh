@@ -67,7 +67,14 @@ ch_post() {
 apply_file() {
   local f="$1"
   while IFS= read -r -d '' stmt; do
-    case "$(printf '%s' "$stmt" | tr -d '[:space:]' | sed -E 's/--[^\\n]*//g')" in
+    # Skip chunks that carry no SQL (pure comment / blank). Delete full-line
+    # `--` comments FIRST, line by line, then collapse whitespace. Order
+    # matters: collapsing whitespace first joins every line into one, so a
+    # single leading `--` would swallow the rest of the chunk and a real
+    # statement sitting under a comment line would look empty and get dropped.
+    # That silent drop is exactly what skipped `add column end_user_id` in
+    # 0008 (its next statement then failed with NO_SUCH_COLUMN_IN_TABLE).
+    case "$(printf '%s' "$stmt" | sed -E '/^[[:space:]]*--/d' | tr -d '[:space:]')" in
       "") continue ;;
     esac
     ch_post "$stmt" "$(basename "$f")"

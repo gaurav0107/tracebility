@@ -1,18 +1,12 @@
 /**
- * App chrome (DESIGN.md v2 — mock-as-truth):
- *   topbar        topbar
- *   sidebar (232) main
+ * App chrome — "Langprobe App Design Overhaul" (see .context/design-target/SPEC.md):
+ *   [ sidebar (236, full height) ][ main (topbar 58 + scroll) ]
  *
- * Topbar = 48px sticky brand + crumbs + flexible spacer + search.
- * Sidebar = 232px column with project switcher card, nav-section labels,
- *           nav-items, footer user-row.
- *
- * The page renders inside <main>; pages may opt into a custom topbar or
- * supply a `crumbs` prop. Children get the full interior — no inner padding,
- * pages decide their own pad.
+ * Sidebar (--surface-sidebar): brand row · project-switcher pill · nav (text
+ * pills) · footer user-row. Topbar lives INSIDE the main column (breadcrumb +
+ * search pill). Children get the full interior — pages decide their own pad.
  */
 
-import { Search } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { LogoutLink } from "@/components/AuthClient";
@@ -47,24 +41,34 @@ export async function Shell({
       style={{
         display: "grid",
         gridTemplateColumns: "var(--sidebar-w) 1fr",
-        gridTemplateRows: "var(--topbar-h) 1fr",
-        gridTemplateAreas: `"topbar topbar" "sidebar main"`,
         height: "100vh",
         background: "var(--bg)",
+        overflow: "hidden",
       }}
     >
-      <Topbar crumbs={crumbs} active={active} />
       <Sidebar active={active} projects={projects} me={me} />
-      <main
+      <div
         style={{
-          gridArea: "main",
-          overflow: "auto",
-          background: "var(--bg)",
+          display: "flex",
+          flexDirection: "column",
+          minWidth: 0,
+          background: "var(--surface-app)",
+          overflow: "hidden",
         }}
       >
-        {children}
-        {inspector}
-      </main>
+        <Topbar crumbs={crumbs} active={active} />
+        <main
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: "auto",
+            background: "var(--surface-app)",
+          }}
+        >
+          {children}
+          {inspector}
+        </main>
+      </div>
     </div>
   );
 }
@@ -79,29 +83,22 @@ function Topbar({
   return (
     <header
       style={{
-        gridArea: "topbar",
+        height: "var(--topbar-h)",
+        flexShrink: 0,
         display: "flex",
         alignItems: "center",
-        gap: 16,
-        padding: "0 16px",
-        borderBottom: "1px solid var(--border)",
-        background: "var(--surface)",
+        gap: 8,
+        padding: "0 32px",
+        borderBottom: "1px solid var(--border-soft)",
+        background: "var(--surface-app)",
       }}
     >
-      <BrandMark />
       <div className="crumbs">
         {crumbs ?? (
           <>
+            {active ? <span className="mono">{active.slug}</span> : null}
             <span className="sep">/</span>
             <span className="last">overview</span>
-            {active ? (
-              <>
-                <span className="sep">/</span>
-                <span className="mono" style={{ color: "var(--text-3)" }}>
-                  {active.slug}
-                </span>
-              </>
-            ) : null}
           </>
         )}
       </div>
@@ -111,60 +108,16 @@ function Topbar({
   );
 }
 
-function BrandMark() {
-  return (
-    <Link
-      href="/"
-      aria-label="langprobe home"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 10,
-        textDecoration: "none",
-        color: "var(--text)",
-      }}
-    >
-      <span
-        aria-hidden
-        style={{
-          width: 22,
-          height: 22,
-          borderRadius: "var(--r-1)",
-          background: "var(--accent)",
-          color: "var(--accent-fg)",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily: "var(--f-mono)",
-          fontSize: 13,
-          fontWeight: 600,
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
-        }}
-      >
-        t
-      </span>
-      <span
-        style={{
-          fontSize: 13,
-          fontWeight: 500,
-          letterSpacing: -0.01,
-          color: "var(--text)",
-        }}
-      >
-        langprobe
-      </span>
-    </Link>
-  );
-}
-
 function SearchBox() {
   return (
-    <label className="search-box" htmlFor="topbar-search">
-      <Search size={14} strokeWidth={1.5} />
+    <label className="search-box" htmlFor="topbar-search" style={{ maxWidth: 300 }}>
+      <span aria-hidden style={{ fontSize: 12, color: "var(--text-4)" }}>
+        ⌕
+      </span>
       <input
         id="topbar-search"
         type="search"
-        placeholder="Search runs, evals, prompts…"
+        placeholder="search runs, evals, prompts…"
         aria-label="Search"
       />
       <span className="kbd" aria-hidden>
@@ -186,44 +139,81 @@ function Sidebar({
   return (
     <aside
       style={{
-        gridArea: "sidebar",
-        background: "var(--surface-2)",
-        borderRight: "1px solid var(--border)",
+        background: "var(--surface-sidebar)",
+        borderRight: "1px solid var(--border-soft)",
         display: "flex",
         flexDirection: "column",
-        overflow: "auto",
+        padding: "20px 14px 14px",
+        overflow: "hidden",
       }}
     >
-      <div style={{ padding: "12px 12px 8px" }}>
-        <div
-          className="card"
-          style={{
-            padding: "10px 12px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--text-3)",
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-            }}
-          >
-            Project
-          </div>
-          <ProjectSwitcher active={active} projects={projects} />
-        </div>
+      <BrandMark />
+      <div style={{ marginTop: 18 }}>
+        <ProjectSwitcher active={active} projects={projects} />
       </div>
-
-      <SidebarNav />
-
-      <div style={{ flex: 1 }} />
-
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflow: "auto",
+          marginTop: 8,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <SidebarNav />
+      </div>
       <SidebarFooter me={me} />
     </aside>
+  );
+}
+
+function BrandMark() {
+  return (
+    <Link
+      href="/"
+      aria-label="langprobe home"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 9,
+        padding: "0 8px",
+        textDecoration: "none",
+        color: "var(--text)",
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: 8,
+          background: "var(--accent)",
+          display: "grid",
+          placeItems: "center",
+          boxShadow: "var(--shadow-logo)",
+        }}
+      >
+        <span
+          style={{
+            width: 9,
+            height: 9,
+            borderRadius: 3,
+            background: "#FFFFFF",
+          }}
+        />
+      </span>
+      <span
+        style={{
+          fontSize: 15,
+          fontWeight: 800,
+          letterSpacing: "-0.01em",
+          color: "var(--text)",
+        }}
+      >
+        langprobe
+      </span>
+    </Link>
   );
 }
 
@@ -232,8 +222,8 @@ function SidebarFooter({ me }: { me: MeResponse | null }) {
     return (
       <div
         style={{
-          padding: 12,
-          borderTop: "1px solid var(--border)",
+          padding: "14px 8px 2px",
+          borderTop: "1px solid var(--border-soft)",
           display: "flex",
           alignItems: "center",
           gap: 8,
@@ -241,16 +231,12 @@ function SidebarFooter({ me }: { me: MeResponse | null }) {
       >
         <Link
           href="/login"
-          className="btn btn-primary"
-          style={{ fontSize: 12, flex: 1, justifyContent: "center" }}
+          className="btn btn-primary btn-sm"
+          style={{ flex: 1 }}
         >
           Sign in
         </Link>
-        <Link
-          href="/login?tab=signup"
-          className="btn btn-ghost"
-          style={{ fontSize: 12 }}
-        >
+        <Link href="/login?tab=signup" className="btn btn-ghost btn-sm">
           Sign up
         </Link>
       </div>
@@ -260,8 +246,8 @@ function SidebarFooter({ me }: { me: MeResponse | null }) {
   return (
     <div
       style={{
-        padding: 12,
-        borderTop: "1px solid var(--border)",
+        padding: "14px 8px 2px",
+        borderTop: "1px solid var(--border-soft)",
         display: "flex",
         alignItems: "center",
         gap: 10,
@@ -274,12 +260,12 @@ function SidebarFooter({ me }: { me: MeResponse | null }) {
           height: 28,
           borderRadius: 9999,
           background: "var(--surface-3)",
-          color: "var(--text)",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
+          color: "var(--text-2)",
+          display: "grid",
+          placeItems: "center",
           fontSize: 12,
-          fontWeight: 500,
+          fontWeight: 700,
+          flexShrink: 0,
         }}
       >
         {initial}
@@ -294,7 +280,8 @@ function SidebarFooter({ me }: { me: MeResponse | null }) {
       >
         <span
           style={{
-            fontSize: 13,
+            fontSize: 12.5,
+            fontWeight: 600,
             color: "var(--text)",
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -306,8 +293,8 @@ function SidebarFooter({ me }: { me: MeResponse | null }) {
         <span
           className="mono"
           style={{
-            fontSize: 11,
-            color: "var(--text-3)",
+            fontSize: 10.5,
+            color: "var(--text-4)",
           }}
         >
           {me.is_root ? "root" : "member"}

@@ -56,11 +56,11 @@ async def list_my_workspaces(
                org.id         as org_id,
                org.slug       as org_slug,
                org.name       as org_name,
-               membership.role as role
-        from membership
-        join workspace on workspace.id = membership.workspace_id
+               workspace_member.role as role
+        from workspace_member
+        join workspace on workspace.id = workspace_member.workspace_id
         join org       on org.id = workspace.org_id
-        where membership.user_id = $1
+        where workspace_member.user_id = $1
           and workspace.deleted_at is null
           and org.deleted_at is null
         order by org.name, workspace.name
@@ -99,10 +99,10 @@ async def select_workspace(
     pool: asyncpg.Pool = request.app.state.pg
     row = await pool.fetchrow(
         """
-        select membership.role, workspace.org_id
-        from membership
-        join workspace on workspace.id = membership.workspace_id
-        where membership.user_id = $1 and workspace.id = $2
+        select workspace_member.role, workspace.org_id
+        from workspace_member
+        join workspace on workspace.id = workspace_member.workspace_id
+        where workspace_member.user_id = $1 and workspace.id = $2
           and workspace.deleted_at is null
         """,
         principal.user_id,

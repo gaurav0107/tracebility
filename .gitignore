@@ -69,10 +69,19 @@ docker-compose.override.yml
 .worktrees/
 
 # Local agent / scratchpad state
-.claude/
+.claude/*
+# ...except the shipped, product-facing langprobe instrumentation skill.
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/langprobe/
 .github/skills/
 docs/superpowers/plans/
 next-items.md
 
 # Brainstorm visual-companion sessions
 .superpowers/
+
+# Design / agent tooling caches (regenerated locally, not part of the product)
+.impeccable/
+.github/hooks/impeccable.json
+.serena/

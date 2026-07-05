@@ -45,6 +45,7 @@ export default async function ApiKeysPage() {
           subtitle={`${active.slug} · ${keys.length} ${keys.length === 1 ? "key" : "keys"}`}
           right={<CreateKeyButton projectId={active.id} />}
         />
+        <SettingsTabs active="api-keys" />
         <KeysCard keys={keys} reason={keysRes.error} project={active} />
         <SetupCard project={active} />
       </PageInterior>
@@ -56,15 +57,59 @@ function PageInterior({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        padding: 24,
+        padding: "28px 32px 32px",
         display: "flex",
         flexDirection: "column",
         gap: 20,
-        maxWidth: 1200,
       }}
     >
       {children}
     </div>
+  );
+}
+
+const SETTINGS_TABS = [
+  { key: "api-keys", label: "api keys", href: "/api-keys" },
+  { key: "members", label: "members", href: "/members" },
+  { key: "workspace", label: "workspace", href: "/workspace" },
+  { key: "credentials", label: "llm credentials", href: "/workspace/credentials" },
+  { key: "sso", label: "sso", href: "/workspace/sso" },
+] as const;
+
+function SettingsTabs({ active }: { active: string }) {
+  return (
+    <nav
+      style={{ display: "flex", gap: 8, flexShrink: 0 }}
+      aria-label="Settings"
+    >
+      {SETTINGS_TABS.map((t) => {
+        const isActive = t.key === active;
+        return (
+          <a
+            key={t.key}
+            href={t.href}
+            aria-current={isActive ? "page" : undefined}
+            style={{
+              fontSize: 12.5,
+              fontWeight: isActive ? 700 : 600,
+              color: isActive ? "var(--link)" : "var(--text-2)",
+              background: isActive
+                ? "var(--accent-fill)"
+                : "var(--surface)",
+              border: `1px solid ${
+                isActive ? "var(--accent-border)" : "var(--border)"
+              }`,
+              borderRadius: "var(--r-pill)",
+              padding: "7px 16px",
+              textDecoration: "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {t.label}
+          </a>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -86,12 +131,12 @@ function PageHeader({
         gap: 16,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
         <h1>{title}</h1>
         {subtitle ? (
           <span
             className="mono"
-            style={{ fontSize: 12, color: "var(--text-3)" }}
+            style={{ fontSize: 12, color: "var(--text-4)" }}
           >
             {subtitle}
           </span>
@@ -114,10 +159,11 @@ function KeysCard({
   return (
     <section className="card" style={{ overflow: "hidden" }}>
       <div className="card-head">
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-          <h2>Keys</h2>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          <h3 className="card-title">API keys</h3>
           <span className="card-sub">
-            scoped to <span className="mono">{project.slug}</span>
+            {keys.length} {keys.length === 1 ? "key" : "keys"} · plaintext shown
+            once
           </span>
         </div>
       </div>
@@ -146,17 +192,31 @@ function KeysCard({
                     : "active";
                 return (
                   <tr key={k.id}>
-                    <td>{k.name}</td>
-                    <td className="mono">lt_{k.public_id}…</td>
+                    <td style={{ fontWeight: 600 }}>{k.name}</td>
+                    <td className="mono" style={{ color: "var(--text-2)" }}>
+                      lt_{k.public_id}…
+                    </td>
                     <td>
                       <StatusPill status={status} />
                     </td>
                     <td>
                       <span
-                        style={{ display: "flex", gap: 4, flexWrap: "wrap" }}
+                        style={{ display: "flex", gap: 5, flexWrap: "wrap" }}
                       >
                         {k.scopes.map((s) => (
-                          <span key={s} className="badge badge-neutral">
+                          <span
+                            key={s}
+                            className="mono"
+                            style={{
+                              fontSize: 10.5,
+                              fontWeight: 600,
+                              color: "var(--text-2)",
+                              background: "var(--surface-3)",
+                              borderRadius: "var(--r-pill)",
+                              padding: "3px 10px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
                             {s}
                           </span>
                         ))}
@@ -164,13 +224,13 @@ function KeysCard({
                     </td>
                     <td
                       className="num"
-                      style={{ textAlign: "right", color: "var(--text-3)" }}
+                      style={{ textAlign: "right", color: "var(--text-4)" }}
                     >
                       {fmtDate(k.created_at)}
                     </td>
                     <td
                       className="num"
-                      style={{ textAlign: "right", color: "var(--text-3)" }}
+                      style={{ textAlign: "right", color: "var(--text-4)" }}
                     >
                       {k.last_used_at ? fmtDate(k.last_used_at) : "—"}
                     </td>
@@ -200,29 +260,52 @@ function KeysCard({
 function SetupCard({ project }: { project: Project }) {
   return (
     <section className="card card-pad-lg">
-      <h2 style={{ marginBottom: 8 }}>Use this key</h2>
-      <p
+      <div
         style={{
-          color: "var(--text-2)",
-          margin: "0 0 12px",
-          fontSize: 13,
-          lineHeight: 1.55,
+          display: "flex",
+          alignItems: "baseline",
+          gap: 10,
+          flexWrap: "wrap",
         }}
       >
-        Set <span className="mono">LANGPROBE_API_KEY</span> in the
-        environment of any process that ingests traces. The Python and JS SDKs
-        pick it up automatically; the LangSmith shim does too.
-      </p>
-      <pre style={{ margin: 0 }}>
-        {`export LANGPROBE_API_KEY=lt_...
-export LANGPROBE_PROJECT=${project.slug}
-export LANGPROBE_BASE_URL=https://langprobe.local
-
-# LangSmith-compatible drop-in:
-# pip install langprobe-langsmith-shim
-# from langprobe_langsmith_shim import Client
-`}
-      </pre>
+        <h3 className="card-title">Use this key</h3>
+        <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>
+          Set <span className="mono">LANGPROBE_API_KEY</span> in any process
+          that ingests traces. The Python and JS SDKs pick it up automatically;
+          the LangSmith shim does too.
+        </span>
+      </div>
+      <div
+        style={{
+          background: "var(--surface-2)",
+          border: "1px solid var(--border-soft)",
+          borderRadius: "var(--r-4)",
+          padding: "14px 18px",
+          marginTop: 14,
+          fontFamily: "var(--f-mono)",
+          fontSize: 12,
+          lineHeight: 1.85,
+          overflowX: "auto",
+        }}
+      >
+        <div>
+          <span style={{ color: "var(--text-4)" }}>$</span> export
+          LANGPROBE_API_KEY=<span style={{ color: "var(--link)" }}>lt_…</span>
+        </div>
+        <div>
+          <span style={{ color: "var(--text-4)" }}>$</span> export
+          LANGPROBE_PROJECT=
+          <span style={{ color: "var(--link)" }}>{project.slug}</span>
+        </div>
+        <div>
+          <span style={{ color: "var(--text-4)" }}>$</span> export
+          LANGPROBE_BASE_URL=
+          <span style={{ color: "var(--link)" }}>https://langprobe.local</span>
+        </div>
+        <div style={{ color: "var(--text-4)" }}>
+          # LangSmith-compatible drop-in: pip install langprobe-langsmith-shim
+        </div>
+      </div>
     </section>
   );
 }

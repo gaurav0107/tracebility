@@ -139,7 +139,7 @@ async def list_replayable_runs(
                c.unique_hashes as unique_hashes,
                c.by_kind_pairs as by_kind_pairs
           from caps c
-          left join run final r
+          left join run as r final
                  on r.project_id = {project_id:UUID}
                 and r.run_id = c.run_id
          order by c.last_capture_at desc

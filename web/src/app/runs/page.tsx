@@ -200,10 +200,10 @@ function PageInterior({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        padding: 24,
+        padding: "28px 32px 32px",
         display: "flex",
         flexDirection: "column",
-        gap: 20,
+        gap: 16,
         maxWidth: 1400,
       }}
     >
@@ -228,12 +228,12 @@ function PageHeader({
         gap: 16,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
         <h1>{title}</h1>
         {subtitle ? (
           <span
             className="mono"
-            style={{ fontSize: 12, color: "var(--text-3)" }}
+            style={{ fontSize: 12, color: "var(--text-4)" }}
           >
             {subtitle}
           </span>
@@ -315,7 +315,7 @@ function RunsCard({
                   </td>
                   <td
                     className="num"
-                    style={{ textAlign: "right", color: "var(--text-3)" }}
+                    style={{ textAlign: "right", color: "var(--text-4)" }}
                   >
                     {fmtTime(r.start_time)}
                   </td>
@@ -390,9 +390,11 @@ function KindBadge({ kind }: { kind: string }) {
       ? "kind-llm"
       : k === "tool"
         ? "kind-tool"
-        : k === "retriever" || k === "retr"
+        : k === "retriever" || k === "retr" || k === "reranker"
           ? "kind-retr"
-          : "kind-chain";
+          : k === "agent"
+            ? "kind-agent"
+            : "kind-chain";
   return <span className={`kind-badge ${cls}`}>{kind || "chain"}</span>;
 }
 

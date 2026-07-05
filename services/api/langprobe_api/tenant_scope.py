@@ -39,6 +39,36 @@ class TenantScope:
     principal: Principal
 
 
+async def resolve_tenant_ids(
+    pool: asyncpg.Pool,
+    project_id: UUID,
+) -> tuple[UUID, UUID]:
+    """Return ``(org_id, workspace_id)`` for a project.
+
+    Write helper for ClickHouse inserts into tenant-aware tables (run, span,
+    eval_score, dataset_item, ...). Every such insert must carry the
+    ``(org_id, workspace_id)`` tuple so post-0006 rows land under the correct
+    tenant instead of the zero-UUID default; see
+    ``test_property_tenant_columns_on_insert.py``.
+
+    This performs no RBAC — callers resolve the request principal's access
+    separately (``resolve_project_scope`` / ``_assert_project_role``) before
+    writing. It only maps project_id -> tenant tuple.
+    """
+    row = await pool.fetchrow(
+        """
+        select project.workspace_id, workspace.org_id
+        from project
+        join workspace on workspace.id = project.workspace_id
+        where project.id = $1
+        """,
+        project_id,
+    )
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+    return row["org_id"], row["workspace_id"]
+
+
 async def resolve_project_scope(
     pool: asyncpg.Pool,
     project_id: UUID,

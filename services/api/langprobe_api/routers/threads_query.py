@@ -37,6 +37,7 @@ router = APIRouter(prefix="/v1/threads", tags=["threads"])
 
 class ThreadListItem(BaseModel):
     session_id: str
+    end_user_id: str | None
     turn_count: int
     first_run_at: datetime
     last_run_at: datetime
@@ -67,6 +68,7 @@ class ThreadRun(BaseModel):
 class ThreadDetail(BaseModel):
     session_id: str
     project_id: UUID
+    end_user_id: str | None
     turn_count: int
     first_run_at: datetime
     last_run_at: datetime
@@ -80,6 +82,7 @@ class ThreadDetail(BaseModel):
 async def list_threads(
     request: Request,
     project_id: UUID = Query(...),
+    end_user_id: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     principal: Principal = Depends(require_user),
@@ -91,9 +94,15 @@ async def list_threads(
     # quantile(0.95) on duration_ns rolled up across the session;
     # argMax(run_id, start_time) and argMax(status, start_time) give
     # us the most recent run + its terminal status for the badge.
-    sql = """
+    # argMax(end_user_id, start_time) surfaces the end user of the most
+    # recent turn (a session should be one end user, but we don't enforce it).
+    end_user_filter = ""
+    if end_user_id is not None:
+        end_user_filter = "and end_user_id = {end_user_id:String}"
+    sql = f"""
         select
             session_id,
+            argMax(end_user_id, start_time) as end_user_id,
             count() as turn_count,
             min(start_time) as first_run_at,
             max(start_time) as last_run_at,
@@ -104,18 +113,21 @@ async def list_threads(
             argMax(run_id, start_time) as last_run_id,
             argMax(status, start_time) as last_status
         from run final
-        where project_id = {project_id:UUID}
+        where project_id = {{project_id:UUID}}
           and session_id != ''
           and session_id is not null
+          {end_user_filter}
         group by session_id
         order by last_run_at desc
-        limit {limit:UInt32} offset {offset:UInt32}
+        limit {{limit:UInt32}} offset {{offset:UInt32}}
     """
     params: dict[str, object] = {
         "project_id": str(project_id),
         "limit": limit,
         "offset": offset,
     }
+    if end_user_id is not None:
+        params["end_user_id"] = end_user_id
 
     try:
         rows = await ch.query(sql, parameters=params)
@@ -126,6 +138,7 @@ async def list_threads(
     items = [
         ThreadListItem(
             session_id=row["session_id"],
+            end_user_id=row.get("end_user_id") or None,
             turn_count=int(row["turn_count"] or 0),
             first_run_at=row["first_run_at"],
             last_run_at=row["last_run_at"],
@@ -157,7 +170,7 @@ async def get_thread(
 
     sql = """
         select run_id, name, kind, status, start_time, end_time,
-               duration_ns, total_tokens, cost_usd
+               duration_ns, total_tokens, cost_usd, end_user_id
         from run final
         where project_id = {project_id:UUID}
           and session_id = {session_id:String}
@@ -191,9 +204,17 @@ async def get_thread(
     total_cost = sum(r.cost_usd for r in runs)
     total_tokens = sum(r.total_tokens for r in runs)
     error_count = sum(1 for r in runs if r.status == "error")
+    # Thread-level end user: the most recent turn's end_user_id (rows are
+    # start_time asc). A session should map to one end user, but we surface
+    # the latest rather than assume uniqueness.
+    end_user_id = next(
+        (row.get("end_user_id") for row in reversed(rows) if row.get("end_user_id")),
+        None,
+    )
     return ThreadDetail(
         session_id=session_id,
         project_id=project_id,
+        end_user_id=end_user_id,
         turn_count=len(runs),
         first_run_at=runs[0].start_time,
         last_run_at=runs[-1].start_time,

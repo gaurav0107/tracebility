@@ -42,6 +42,7 @@ from pydantic import BaseModel, Field
 from .. import audit
 from ..auth import Principal, assert_workspace_role, require_user
 from ..clickhouse_client import ClickHouseQuery
+from ..tenant_scope import resolve_tenant_ids
 from . import playground as playground_module
 
 _VAR_RE = re.compile(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}")
@@ -389,6 +390,7 @@ async def _run_comparison(
         score_sum_b = 0.0
         judged_at = datetime.utcnow()
         project_id = cmp_row["project_id"]
+        org_id, _ = await resolve_tenant_ids(pool, project_id)
         for item in items:
             output_a, run_id_a, err_a = await _dispatch_variant(
                 pool,
@@ -426,6 +428,8 @@ async def _run_comparison(
             if run_id_a is not None:
                 await _write_comparison_trace(
                     ch,
+                    org_id=org_id,
+                    workspace_id=workspace_id,
                     project_id=cmp_row["project_id"],
                     run_id=run_id_a,
                     variant=variant_a,
@@ -438,6 +442,8 @@ async def _run_comparison(
             if run_id_b is not None:
                 await _write_comparison_trace(
                     ch,
+                    org_id=org_id,
+                    workspace_id=workspace_id,
                     project_id=cmp_row["project_id"],
                     run_id=run_id_b,
                     variant=variant_b,
@@ -450,6 +456,8 @@ async def _run_comparison(
 
             rows.append(
                 _score_row(
+                    org_id,
+                    workspace_id,
                     cmp_row["project_id"],
                     item["item_id"],
                     comparison_id,
@@ -465,6 +473,8 @@ async def _run_comparison(
             )
             rows.append(
                 _score_row(
+                    org_id,
+                    workspace_id,
                     cmp_row["project_id"],
                     item["item_id"],
                     comparison_id,
@@ -485,6 +495,8 @@ async def _run_comparison(
                     "eval_score",
                     rows,
                     column_names=[
+                        "org_id",
+                        "workspace_id",
                         "project_id",
                         "run_id",
                         "span_id",
@@ -536,6 +548,8 @@ async def _run_comparison(
 
 
 def _score_row(
+    org_id: UUID,
+    workspace_id: UUID,
     project_id: UUID,
     item_id: UUID,
     comparison_id: UUID,
@@ -555,6 +569,8 @@ def _score_row(
     # When dispatch was skipped (no items / fall-through) we keep the
     # legacy item_id-as-run_id shape.
     return (
+        str(org_id),
+        str(workspace_id),
         str(project_id),
         run_id if run_id is not None else str(item_id),
         None,  # span_id
@@ -756,6 +772,8 @@ async def _dispatch_variant(
 async def _write_comparison_trace(
     ch: ClickHouseQuery,
     *,
+    org_id: UUID,
+    workspace_id: UUID,
     project_id: UUID,
     run_id: str,
     variant: _Variant,
@@ -792,6 +810,8 @@ async def _write_comparison_trace(
             "run",
             [
                 (
+                    str(org_id),
+                    str(workspace_id),
                     str(project_id),
                     run_id,
                     None,
@@ -820,6 +840,8 @@ async def _write_comparison_trace(
                 )
             ],
             column_names=[
+                "org_id",
+                "workspace_id",
                 "project_id",
                 "run_id",
                 "parent_run_id",
@@ -851,6 +873,8 @@ async def _write_comparison_trace(
             "span",
             [
                 (
+                    str(org_id),
+                    str(workspace_id),
                     str(project_id),
                     run_id,
                     str(_uuid.uuid4()),
@@ -878,6 +902,8 @@ async def _write_comparison_trace(
                 )
             ],
             column_names=[
+                "org_id",
+                "workspace_id",
                 "project_id",
                 "run_id",
                 "span_id",

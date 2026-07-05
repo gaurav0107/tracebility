@@ -20,23 +20,30 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: langprobe-operator
+# Least privilege: concrete verbs only (no wildcards), and NO access to
+# `secrets`. The reconciler renders `secretKeyRef` env entries into pod
+# specs (resolved by the kubelet); it never calls the Secret API, so a
+# cluster-wide secrets read grant would only widen the blast radius of a
+# compromised operator token without being used. For a tighter posture,
+# convert this ClusterRole to namespaced Roles scoped to the namespaces
+# that host a Langprobe CR.
 rules:
   - apiGroups: ["langprobe.io"]
     resources: ["tracebilities", "tracebilities/status", "tracebilities/finalizers"]
-    verbs: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["apps"]
     resources: ["deployments"]
-    verbs: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
-    resources: ["services", "persistentvolumeclaims", "events", "configmaps"]
-    verbs: ["*"]
+    resources: ["services", "persistentvolumeclaims", "configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses"]
-    verbs: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
-    resources: ["secrets"]
-    # Operator only READS secrets to render env (reference, not copy).
-    verbs: ["get", "list", "watch"]
+    resources: ["events"]
+    # kopf posts progress/error events on the objects it manages.
+    verbs: ["create", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

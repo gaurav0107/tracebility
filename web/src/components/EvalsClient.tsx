@@ -121,7 +121,7 @@ export function NewEvalRunButton({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(10,10,10,0.40)",
+        background: "var(--scrim)",
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
@@ -133,7 +133,7 @@ export function NewEvalRunButton({
       }}
     >
       <div
-        className="card card-pad-lg"
+        className="card-elevated card-pad-lg"
         style={{ width: "min(560px, 100%)", display: "grid", gap: 12 }}
       >
         <header
@@ -143,7 +143,16 @@ export function NewEvalRunButton({
             justifyContent: "space-between",
           }}
         >
-          <h2 style={{ margin: 0 }}>New eval run</h2>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 18,
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            New eval run
+          </h2>
           <button type="button" className="btn btn-ghost" onClick={reset}>
             cancel
           </button>
@@ -224,25 +233,21 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label style={{ display: "grid", gap: 4 }}>
+    <label style={{ display: "grid", gap: 7 }}>
       <span
         style={{
-          fontSize: 11,
-          color: "var(--text-3)",
+          fontSize: 10.5,
+          fontWeight: 700,
+          color: "var(--text-4)",
           textTransform: "uppercase",
-          letterSpacing: 0.4,
+          letterSpacing: "0.08em",
         }}
       >
         {label}
       </span>
       {children}
       {hint ? (
-        <span
-          className="mono"
-          style={{ fontSize: 11, color: "var(--text-3)" }}
-        >
-          {hint}
-        </span>
+        <span style={{ fontSize: 11.5, color: "var(--text-3)" }}>{hint}</span>
       ) : null}
     </label>
   );

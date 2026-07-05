@@ -1,0 +1,29 @@
+# langprobe
+
+> langprobe is a self-hosted LLM/agent observability, eval-rigor, and agent-replay
+> platform — the real debugger for agents. When an LLM agent goes sideways at 2 a.m.,
+> it's the tool you reach for: trace every run, replay a captured run with edits
+> applied, and score outputs with a panel of LLM judges. It ingests traces over plain
+> OTLP/HTTP, so a stock OpenInference instrumentor + OTLP exporter is all you need —
+> no proprietary SDK. Runs into your VPC, backed by Postgres (control plane),
+> ClickHouse (data plane), and Redis (ingest queue).
+
+## Endpoints
+
+- [POST /v1/traces](docs/getting-started.md): OTLP/HTTP trace intake on the ingest-api. Accepts both `application/x-protobuf` (stock OTLP exporter) and `application/json`. Auth: `Authorization: Bearer lt_<public_id>.<secret>` or `X-Api-Key: <key>`. Acks `202 Accepted`.
+- [POST /v1/runs](docs/getting-started.md): native/LangSmith-shim JSON run intake (RunCreate/RunUpdate shapes).
+- POST /v1/setup: first-run bootstrap (root user + default org/workspace/project); locks itself after first success.
+- Local defaults: ingest-api `http://localhost:7080`, api `http://localhost:7081`, web `http://localhost:7090`.
+
+## Docs
+
+- [Getting started](docs/getting-started.md): self-host the stack, first-run setup, mint an API key, send your first trace, and where runs show up (`/runs`).
+- [README](README.md): what's in the repo, storage stack, quick start.
+- [PRODUCT](PRODUCT.md): what langprobe is, who it's for, positioning.
+
+## Instrument with your coding agent
+
+- [langprobe agent skill](.claude/skills/langprobe/SKILL.md): a hands-free procedure a coding agent follows to instrument an arbitrary repo — detect the framework, add the right OpenInference instrumentor + OTLP exporter, point `OTEL_EXPORTER_OTLP_ENDPOINT` at your langprobe host `/v1/traces`, set the API-key header, and verify a trace lands in `/runs`.
+- [Framework integrations](.claude/skills/langprobe/references/framework-integrations.md): recipes for CrewAI, DSPy, Pydantic AI, OpenAI Agents, LlamaIndex, and bare providers.
+- [Custom spans & identity](.claude/skills/langprobe/references/decorators-and-traces.md): span kinds langprobe reads, tokens/cost attributes, and end-user identity via `enduser.id`.
+- [Troubleshooting](.claude/skills/langprobe/references/troubleshooting.md): the known papercuts — auth, protobuf vs JSON, wrong span kinds, missing tokens, ugly run names.

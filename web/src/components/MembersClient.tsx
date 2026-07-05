@@ -255,9 +255,9 @@ function SecretReveal({ value }: { value: string }) {
         alignItems: "center",
         gap: 8,
         padding: "10px 12px",
-        background: "var(--surface-3)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--r-2)",
+        background: "var(--surface-2)",
+        border: "1px solid var(--border-soft)",
+        borderRadius: "var(--r-4)",
       }}
     >
       <KeyRound size={14} strokeWidth={1.5} color="var(--text-3)" />
@@ -521,7 +521,7 @@ function Backdrop({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(10, 10, 10, 0.4)",
+        background: "var(--scrim)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -530,12 +530,7 @@ function Backdrop({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="card"
-        style={{
-          background: "var(--surface)",
-          borderRadius: "var(--r-3)",
-          boxShadow: "var(--shadow-3)",
-        }}
+        className="card-elevated"
       >
         {children}
       </div>

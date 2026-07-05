@@ -49,6 +49,7 @@ from .. import audit
 from ..auth import Principal, assert_workspace_role, require_user
 from ..clickhouse_client import ClickHouseQuery
 from ..llm import Message as DispatchMessage
+from ..tenant_scope import resolve_tenant_ids
 from .prompts import Message
 
 log = structlog.get_logger("langprobe.api.playground")
@@ -296,8 +297,11 @@ async def create_session(
         result = result_dict
         latency_ms = int((time.monotonic() - started) * 1000)
         run_id = str(uuid.uuid4())
+        org_id, ws_id = await resolve_tenant_ids(pool, body.project_id)
         await _write_clickhouse_trace(
             request.app.state.clickhouse,
+            org_id=org_id,
+            workspace_id=ws_id,
             project_id=body.project_id,
             run_id=run_id,
             model=body.model,
@@ -552,6 +556,8 @@ def _approx_tokens(text: str) -> int:
 async def _write_clickhouse_trace(
     clickhouse: ClickHouseQuery | None,
     *,
+    org_id: UUID,
+    workspace_id: UUID,
     project_id: UUID,
     run_id: str,
     model: str,
@@ -582,6 +588,8 @@ async def _write_clickhouse_trace(
             "run",
             [
                 (
+                    str(org_id),
+                    str(workspace_id),
                     str(project_id),
                     run_id,
                     None,
@@ -610,6 +618,8 @@ async def _write_clickhouse_trace(
                 )
             ],
             column_names=[
+                "org_id",
+                "workspace_id",
                 "project_id",
                 "run_id",
                 "parent_run_id",
@@ -641,6 +651,8 @@ async def _write_clickhouse_trace(
             "span",
             [
                 (
+                    str(org_id),
+                    str(workspace_id),
                     str(project_id),
                     run_id,
                     str(uuid.uuid4()),
@@ -668,6 +680,8 @@ async def _write_clickhouse_trace(
                 )
             ],
             column_names=[
+                "org_id",
+                "workspace_id",
                 "project_id",
                 "run_id",
                 "span_id",
