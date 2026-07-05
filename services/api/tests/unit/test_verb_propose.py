@@ -95,9 +95,7 @@ async def test_propose_eval_valid_llm_json_inserts_draft_and_returns_ready(mocke
     pool = _make_pool(mocker, inserted_row=inserted_row)
     ch = _make_ch(mocker, sample_rows=[_sample_row(run_id)])
     deps = VerbDeps(pool=pool, ch=ch)
-    params = ProposeEvalIn(
-        project_id=project_id, sample_run_ids=[run_id], group_key="TimeoutError"
-    )
+    params = ProposeEvalIn(project_id=project_id, sample_run_ids=[run_id], group_key="TimeoutError")
 
     mock_draft = mocker.patch(
         "langprobe_api.verbs.propose._draft_via_llm",
@@ -135,9 +133,7 @@ async def test_propose_eval_malformed_json_twice_raises_and_inserts_nothing(mock
     pool = _make_pool(mocker)
     ch = _make_ch(mocker, sample_rows=[_sample_row(run_id)])
     deps = VerbDeps(pool=pool, ch=ch)
-    params = ProposeEvalIn(
-        project_id=project_id, sample_run_ids=[run_id], group_key="TimeoutError"
-    )
+    params = ProposeEvalIn(project_id=project_id, sample_run_ids=[run_id], group_key="TimeoutError")
 
     mock_draft = mocker.patch(
         "langprobe_api.verbs.propose._draft_via_llm",
@@ -162,9 +158,7 @@ async def test_propose_eval_malformed_then_valid_succeeds_with_two_dispatches(mo
     pool = _make_pool(mocker, inserted_row={"id": draft_id, "created_at": None})
     ch = _make_ch(mocker, sample_rows=[_sample_row(run_id)])
     deps = VerbDeps(pool=pool, ch=ch)
-    params = ProposeEvalIn(
-        project_id=project_id, sample_run_ids=[run_id], group_key="TimeoutError"
-    )
+    params = ProposeEvalIn(project_id=project_id, sample_run_ids=[run_id], group_key="TimeoutError")
 
     mock_draft = mocker.patch(
         "langprobe_api.verbs.propose._draft_via_llm",
@@ -194,9 +188,7 @@ async def test_propose_eval_trust_boundary_quarantines_injection(mocker):
         sample_rows=[_sample_row(run_id, outputs=f"some output. {injection}")],
     )
     deps = VerbDeps(pool=pool, ch=ch)
-    params = ProposeEvalIn(
-        project_id=project_id, sample_run_ids=[run_id], group_key="TimeoutError"
-    )
+    params = ProposeEvalIn(project_id=project_id, sample_run_ids=[run_id], group_key="TimeoutError")
 
     captured: dict = {}
 
@@ -304,9 +296,7 @@ async def test_propose_eval_forged_delimiter_cannot_escape(mocker):
         sample_rows=[_sample_row(run_id, outputs=f"some output. {forged}")],
     )
     deps = VerbDeps(pool=pool, ch=ch)
-    params = ProposeEvalIn(
-        project_id=project_id, sample_run_ids=[run_id], group_key="TimeoutError"
-    )
+    params = ProposeEvalIn(project_id=project_id, sample_run_ids=[run_id], group_key="TimeoutError")
 
     captured: dict = {}
 
@@ -377,9 +367,7 @@ async def test_propose_eval_parses_json_wrapped_in_code_fence(mocker):
     pool = _make_pool(mocker, inserted_row={"id": draft_id, "created_at": None})
     ch = _make_ch(mocker, sample_rows=[_sample_row(run_id)])
     deps = VerbDeps(pool=pool, ch=ch)
-    params = ProposeEvalIn(
-        project_id=project_id, sample_run_ids=[run_id], group_key="TimeoutError"
-    )
+    params = ProposeEvalIn(project_id=project_id, sample_run_ids=[run_id], group_key="TimeoutError")
 
     fenced_response = f"```json\n{VALID_JUDGE_JSON}\n```"
     mock_draft = mocker.patch(
@@ -413,9 +401,7 @@ async def test_draft_via_llm_converts_unexpected_exception_to_dispatch_error_tex
         mocker.AsyncMock(side_effect=RuntimeError("litellm exploded unexpectedly")),
     )
 
-    raw = await _draft_via_llm(
-        deps, ctx, samples=[_sample_row(run_id)], group_key="TimeoutError"
-    )
+    raw = await _draft_via_llm(deps, ctx, samples=[_sample_row(run_id)], group_key="TimeoutError")
 
     assert "litellm exploded unexpectedly" in raw
     judge, error = _parse_judge(raw)

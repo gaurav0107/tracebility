@@ -124,9 +124,7 @@ _SAMPLES_SQL = """
 """
 
 
-async def propose_eval(
-    deps: VerbDeps, ctx: TenantContext, params: ProposeEvalIn
-) -> EvalDraftOut:
+async def propose_eval(deps: VerbDeps, ctx: TenantContext, params: ProposeEvalIn) -> EvalDraftOut:
     require_project_scope(ctx, params.project_id)
 
     run_ids = params.sample_run_ids[:MAX_SAMPLES]

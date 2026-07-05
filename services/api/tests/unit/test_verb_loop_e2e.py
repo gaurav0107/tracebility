@@ -231,9 +231,7 @@ class _FakePool:
         if "set status='done'" in q and "cohort_size=0" in q:
             (run_id,) = args
             run = self.runs[run_id]
-            run.update(
-                status="done", cohort_size=0, item_total=0, item_done=0, caught=0, missed=0
-            )
+            run.update(status="done", cohort_size=0, item_total=0, item_done=0, caught=0, missed=0)
             return "UPDATE 1"
         if "set status='done'" in q:
             run_id, caught, missed, would_have_flagged_at = args

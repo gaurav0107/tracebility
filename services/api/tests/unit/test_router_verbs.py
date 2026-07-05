@@ -410,7 +410,9 @@ def test_backtest_requires_member_or_above_role(mocker, project_id, fake_scope):
     principal = _principal()
     app = _make_app(mocker, principal=principal)
     out = BacktestOut(backtest_run_id=uuid4(), status=BacktestStatus.QUEUED)
-    mocker.patch("langprobe_api.routers.verbs.run_judge_over_cohort", mocker.AsyncMock(return_value=out))
+    mocker.patch(
+        "langprobe_api.routers.verbs.run_judge_over_cohort", mocker.AsyncMock(return_value=out)
+    )
     mocker.patch("fastapi.BackgroundTasks.add_task")
 
     client = TestClient(app)
@@ -434,7 +436,9 @@ def test_backtest_viewer_is_blocked_with_403(mocker, project_id):
         "langprobe_api.routers.verbs.resolve_project_scope",
         mocker.AsyncMock(side_effect=HTTPException(403, "insufficient role")),
     )
-    verb_mock = mocker.patch("langprobe_api.routers.verbs.run_judge_over_cohort", mocker.AsyncMock())
+    verb_mock = mocker.patch(
+        "langprobe_api.routers.verbs.run_judge_over_cohort", mocker.AsyncMock()
+    )
     bg_add_task = mocker.patch("fastapi.BackgroundTasks.add_task")
 
     client = TestClient(app)
@@ -456,7 +460,9 @@ def test_promote_returns_200_and_verb_output(mocker, project_id, fake_scope):
     app = _make_app(mocker, principal=principal)
     judge_id = uuid4()
     out = PromoteOut(judge_id=judge_id)
-    mocker.patch("langprobe_api.routers.verbs.promote_to_recurring", mocker.AsyncMock(return_value=out))
+    mocker.patch(
+        "langprobe_api.routers.verbs.promote_to_recurring", mocker.AsyncMock(return_value=out)
+    )
 
     client = TestClient(app)
     resp = client.post(
@@ -497,7 +503,9 @@ def test_promote_requires_auth(mocker, project_id):
 def test_promote_exception_mapping(mocker, project_id, fake_scope, exc, expected_status):
     principal = _principal()
     app = _make_app(mocker, principal=principal)
-    mocker.patch("langprobe_api.routers.verbs.promote_to_recurring", mocker.AsyncMock(side_effect=exc))
+    mocker.patch(
+        "langprobe_api.routers.verbs.promote_to_recurring", mocker.AsyncMock(side_effect=exc)
+    )
 
     client = TestClient(app)
     resp = client.post(
@@ -543,7 +551,9 @@ def test_promote_requires_admin_or_above_role(mocker, project_id, fake_scope):
     principal = _principal()
     app = _make_app(mocker, principal=principal)
     out = PromoteOut(judge_id=uuid4())
-    mocker.patch("langprobe_api.routers.verbs.promote_to_recurring", mocker.AsyncMock(return_value=out))
+    mocker.patch(
+        "langprobe_api.routers.verbs.promote_to_recurring", mocker.AsyncMock(return_value=out)
+    )
 
     client = TestClient(app)
     client.post(
@@ -569,7 +579,9 @@ def test_promote_viewer_is_blocked_with_403(mocker, project_id):
         "langprobe_api.routers.verbs.resolve_project_scope",
         mocker.AsyncMock(side_effect=HTTPException(403, "insufficient role")),
     )
-    promote_mock = mocker.patch("langprobe_api.routers.verbs.promote_to_recurring", mocker.AsyncMock())
+    promote_mock = mocker.patch(
+        "langprobe_api.routers.verbs.promote_to_recurring", mocker.AsyncMock()
+    )
 
     client = TestClient(app)
     resp = client.post(
@@ -617,7 +629,9 @@ def test_watch_requires_auth(mocker, project_id):
 def test_watch_scope_error_maps_to_403(mocker, project_id, fake_scope):
     principal = _principal()
     app = _make_app(mocker, principal=principal)
-    mocker.patch("langprobe_api.routers.verbs.watch_judge", mocker.AsyncMock(side_effect=ScopeError("nope")))
+    mocker.patch(
+        "langprobe_api.routers.verbs.watch_judge", mocker.AsyncMock(side_effect=ScopeError("nope"))
+    )
 
     client = TestClient(app)
     resp = client.post(

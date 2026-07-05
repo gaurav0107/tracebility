@@ -85,9 +85,7 @@ async def test_cluster_failures_posts_to_correct_url_with_payload_and_cookie(mon
 
 
 async def test_propose_eval_posts_to_correct_url_with_payload_and_cookie(monkeypatch):
-    _install_fake_client(
-        monkeypatch, _FakeResponse(200, {"draft_id": "d1", "status": "ready"})
-    )
+    _install_fake_client(monkeypatch, _FakeResponse(200, {"draft_id": "d1", "status": "ready"}))
     client = _client()
     params = {"project_id": "p1", "sample_run_ids": ["r1"], "group_key": "TimeoutError"}
 
