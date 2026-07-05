@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 from .. import audit
 from ..auth import Principal, assert_workspace_role, require_user
 from ..clickhouse_client import ClickHouseQuery
+from ..tenant_scope import resolve_tenant_ids
 from . import luna_judges
 
 log = structlog.get_logger("langprobe.api.evals")
@@ -292,6 +293,7 @@ async def _run_eval(pool: asyncpg.Pool, ch: ClickHouseQuery, run_id: UUID) -> No
         )
         if run is None:
             return
+        org_id, workspace_id = await resolve_tenant_ids(pool, run["project_id"])
 
         await pool.execute(
             "update eval_run set status='running', started_at=now() where id=$1",
@@ -343,6 +345,8 @@ async def _run_eval(pool: asyncpg.Pool, ch: ClickHouseQuery, run_id: UUID) -> No
             score_sum += score
             rows.append(
                 (
+                    str(org_id),
+                    str(workspace_id),
                     str(run["project_id"]),
                     str(item["item_id"]),  # carry item_id in run_id slot
                     None,  # span_id
@@ -366,6 +370,8 @@ async def _run_eval(pool: asyncpg.Pool, ch: ClickHouseQuery, run_id: UUID) -> No
                     "eval_score",
                     rows,
                     column_names=[
+                        "org_id",
+                        "workspace_id",
                         "project_id",
                         "run_id",
                         "span_id",

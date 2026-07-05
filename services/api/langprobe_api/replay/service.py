@@ -21,6 +21,7 @@ import structlog
 from fastapi import HTTPException
 
 from ..clickhouse_client import ClickHouseQuery
+from ..tenant_scope import resolve_tenant_ids
 from .diff import ReplayDiff, compute_replay_diff
 from .executor import DispatchOutcome, ReplayEdit, apply_llm_edits, execute_replay
 from .record import REPLAY_RUN_COLUMNS, build_replay_run_row
@@ -161,8 +162,11 @@ async def run_span_replay(
         missing_capture_span_ids=plan.missing_capture_span_ids,
     )
 
+    _, workspace_id = await resolve_tenant_ids(pool, project_id)
     row = build_replay_run_row(
         diff,
+        org_id=org_id,
+        workspace_id=workspace_id,
         project_id=project_id,
         replay_run_id=replay_run_id,
         original_run_id=run_id,

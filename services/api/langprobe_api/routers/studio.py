@@ -40,6 +40,7 @@ from pydantic import BaseModel, Field
 from .. import audit
 from ..auth import Principal, assert_workspace_role, require_user
 from ..clickhouse_client import ClickHouseQuery
+from ..tenant_scope import resolve_tenant_ids
 from . import playground as playground_module
 
 log = structlog.get_logger("langprobe.api.studio")
@@ -587,6 +588,8 @@ async def _execute_replay(
     if ch is None:
         return None, "", "clickhouse not configured"
 
+    org_id, _ = await resolve_tenant_ids(pool, project_id)
+
     # 1) Resolve the source span we're replacing. If source_span_id
     #    is unset, pick the run root (parent_span_id is null).
     source_data = await _resolve_source_span(ch, project_id, source_run_id, source_span_id)
@@ -695,6 +698,8 @@ async def _execute_replay(
             "run",
             [
                 (
+                    str(org_id),
+                    str(workspace_id),
                     str(project_id),
                     new_run_id,
                     None,
@@ -723,6 +728,8 @@ async def _execute_replay(
                 )
             ],
             column_names=[
+                "org_id",
+                "workspace_id",
                 "project_id",
                 "run_id",
                 "parent_run_id",
@@ -754,6 +761,8 @@ async def _execute_replay(
             "span",
             [
                 (
+                    str(org_id),
+                    str(workspace_id),
                     str(project_id),
                     new_run_id,
                     new_span_id,
@@ -781,6 +790,8 @@ async def _execute_replay(
                 )
             ],
             column_names=[
+                "org_id",
+                "workspace_id",
                 "project_id",
                 "run_id",
                 "span_id",

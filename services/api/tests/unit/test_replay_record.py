@@ -19,6 +19,8 @@ from langprobe_api.replay.record import (
     summarize_diff,
 )
 
+_ORG = UUID("00000000-0000-0000-0000-0000000000aa")
+_WS = UUID("00000000-0000-0000-0000-0000000000bb")
 _PROJ = UUID("11111111-1111-1111-1111-111111111111")
 _RID = UUID("22222222-2222-2222-2222-222222222222")
 _ORIG = UUID("33333333-3333-3333-3333-333333333333")
@@ -40,6 +42,8 @@ def test_row_matches_schema_column_order_and_arity():
     diff = _diff()
     row = build_replay_run_row(
         diff,
+        org_id=_ORG,
+        workspace_id=_WS,
         project_id=_PROJ,
         replay_run_id=_RID,
         original_run_id=_ORIG,
@@ -48,6 +52,8 @@ def test_row_matches_schema_column_order_and_arity():
     )
     assert len(row) == len(REPLAY_RUN_COLUMNS)
     by = dict(zip(REPLAY_RUN_COLUMNS, row, strict=True))
+    assert by["org_id"] == str(_ORG)
+    assert by["workspace_id"] == str(_WS)
     assert by["project_id"] == str(_PROJ)
     assert by["replay_run_id"] == str(_RID)
     assert by["original_run_id"] == str(_ORIG)
@@ -79,6 +85,8 @@ def test_notes_carry_model_drift_for_er18():
     )
     row = build_replay_run_row(
         diff,
+        org_id=_ORG,
+        workspace_id=_WS,
         project_id=_PROJ,
         replay_run_id=_RID,
         original_run_id=_ORIG,
@@ -92,6 +100,8 @@ def test_notes_carry_model_drift_for_er18():
 def test_finished_at_nullable():
     row = build_replay_run_row(
         _diff(),
+        org_id=_ORG,
+        workspace_id=_WS,
         project_id=_PROJ,
         replay_run_id=_RID,
         original_run_id=_ORIG,

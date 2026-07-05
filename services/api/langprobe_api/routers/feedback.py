@@ -29,6 +29,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from ..clickhouse_client import ClickHouseQuery
+from ..tenant_scope import resolve_tenant_ids
 
 log = structlog.get_logger("langprobe.api.feedback")
 
@@ -98,12 +99,15 @@ async def post_feedback(request: Request, body: FeedbackIn) -> FeedbackAck:
         separators=(",", ":"),
     )
     judged_at = datetime.now(UTC)
+    org_id, workspace_id = await resolve_tenant_ids(pool, key_row["project_id"])
 
     try:
         await ch.insert(
             "eval_score",
             [
                 (
+                    str(org_id),
+                    str(workspace_id),
                     str(key_row["project_id"]),
                     str(body.run_id),
                     None,  # span_id
@@ -121,6 +125,8 @@ async def post_feedback(request: Request, body: FeedbackIn) -> FeedbackAck:
                 )
             ],
             column_names=[
+                "org_id",
+                "workspace_id",
                 "project_id",
                 "run_id",
                 "span_id",

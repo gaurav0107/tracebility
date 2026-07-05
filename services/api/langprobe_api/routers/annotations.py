@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field
 from .. import audit
 from ..auth import Principal, assert_workspace_role, require_user
 from ..clickhouse_client import ClickHouseQuery
+from ..tenant_scope import resolve_tenant_ids
 
 log = structlog.get_logger("langprobe.api.annotations")
 
@@ -349,6 +350,7 @@ async def submit_item(
     workspace_id = await _assert_project_role(
         pool, principal, project_id, ("owner", "admin", "member")
     )
+    org_id, workspace_id = await resolve_tenant_ids(pool, project_id)
 
     item = await pool.fetchrow(
         """select id, run_id, status from annotation_item
@@ -427,6 +429,8 @@ async def submit_item(
                 "eval_score",
                 [
                     (
+                        str(org_id),
+                        str(workspace_id),
                         str(project_id),
                         str(updated["run_id"]),
                         None,
@@ -444,6 +448,8 @@ async def submit_item(
                     )
                 ],
                 column_names=[
+                    "org_id",
+                    "workspace_id",
                     "project_id",
                     "run_id",
                     "span_id",
