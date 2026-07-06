@@ -10,13 +10,15 @@ STALE-HEARTBEAT TERMINATION: the executor (``verbs/backtest.py``'s
 ``_run_backtest``) updates ``heartbeat_at`` on every cohort item while
 ``status='running'``. If the process running that loop is killed
 (pod restart, OOM, deploy) mid-run, the row is left stuck at
-``running`` forever with no writer left to ever move it to a terminal
-state. Rather than requiring a separate durable reaper process for
-this MVP slice, ``watch_judge`` itself declares the run dead on the
-next poll: if it's ``running`` and the heartbeat is older than
-``LEASE_TIMEOUT_S``, this call flips it to ``failed`` (in-band, no
-extra process) so a driving agent's poll loop terminates instead of
-spinning forever against a run that will never update again.
+``running`` with no writer left to ever move it to a terminal state.
+The durable reaper in ``services/scheduler`` (backtest-reaper tick) is
+the primary mechanism that terminates such orphans, on a fixed cadence,
+whether or not anyone polls. ``watch_judge`` keeps a best-effort
+fast-path: if a polled run is ``running`` with a heartbeat older than
+``LEASE_TIMEOUT_S`` it flips it to ``failed`` here too, so a driving
+agent's poll loop terminates immediately instead of waiting for the next
+reaper tick. The UPDATE is guarded by ``and status='running'`` so this
+flip and the reaper's flip can never double-write a terminal state.
 """
 
 from __future__ import annotations
@@ -55,7 +57,7 @@ async def watch_judge(deps: VerbDeps, ctx: TenantContext, params: WatchIn) -> Wa
             """
             update backtest_run
             set status = 'failed', error = $2, finished_at = now()
-            where id = $1
+            where id = $1 and status = 'running'
             """,
             run["id"],
             "heartbeat_timeout",
