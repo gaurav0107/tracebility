@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -106,12 +105,6 @@ def create_app() -> FastAPI:
             if settings.redis_url
             else None
         )
-        # Spawn the alert evaluator so threshold rules tick without an
-        # external scheduler. Cancelled cleanly on shutdown.
-        evaluator_task = asyncio.create_task(
-            alerts.evaluator_loop(app.state.pg, app.state.clickhouse),
-            name="alert-evaluator",
-        )
         log.info(
             "api started",
             bind=f"{settings.bind_host}:{settings.bind_port}",
@@ -120,11 +113,6 @@ def create_app() -> FastAPI:
         try:
             yield
         finally:
-            evaluator_task.cancel()
-            try:
-                await evaluator_task
-            except asyncio.CancelledError:
-                pass
             if app.state.clickhouse is not None:
                 app.state.clickhouse.close()
             if app.state.redis is not None:
