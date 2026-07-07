@@ -66,13 +66,43 @@ def _draft_row(project_id, *, status="ready", judge_config=None):
     }
 
 
+class _AsyncCM:
+    """Minimal async context manager. __aexit__ returns False so an
+    exception raised in the body (e.g. the savepoint's UniqueViolationError)
+    propagates to the verb's except clause, exactly like asyncpg."""
+
+    def __init__(self, value=None) -> None:
+        self._value = value
+
+    async def __aenter__(self):
+        return self._value
+
+    async def __aexit__(self, *exc) -> bool:
+        return False
+
+
 def _make_pool(mocker, *, fetchrow_rows=None, fetchrow_side_effect=None):
-    pool = mocker.MagicMock(name="pool")
+    # promote_to_recurring now does the draft lookup on the pool, then runs
+    # the judge insert + watch-rule + draft update on a connection from
+    # `pool.acquire()` inside `conn.transaction()` (atomic "register AND
+    # watch"). The fake conn shares the pool's fetchrow/execute mocks so the
+    # single side-effect sequence flows across both, and the existing
+    # assertions on pool.fetchrow/pool.execute still see every call.
     if fetchrow_side_effect is not None:
-        pool.fetchrow = mocker.AsyncMock(side_effect=fetchrow_side_effect)
+        fetchrow = mocker.AsyncMock(side_effect=fetchrow_side_effect)
     else:
-        pool.fetchrow = mocker.AsyncMock(side_effect=fetchrow_rows or [])
-    pool.execute = mocker.AsyncMock(return_value="UPDATE 1")
+        fetchrow = mocker.AsyncMock(side_effect=fetchrow_rows or [])
+    execute = mocker.AsyncMock(return_value="UPDATE 1")
+
+    conn = mocker.MagicMock(name="conn")
+    conn.fetchrow = fetchrow
+    conn.execute = execute
+    conn.transaction = lambda *a, **k: _AsyncCM()
+
+    pool = mocker.MagicMock(name="pool")
+    pool.fetchrow = fetchrow
+    pool.execute = execute
+    pool.acquire = lambda *a, **k: _AsyncCM(conn)
     return pool
 
 
