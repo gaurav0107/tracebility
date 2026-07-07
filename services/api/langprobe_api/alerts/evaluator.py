@@ -27,7 +27,7 @@ async def evaluate_due_rules(pool: asyncpg.Pool, clickhouse: ClickHouseQuery | N
     rules = await pool.fetch(
         """
         select id, project_id, metric, comparator, threshold,
-               window_seconds, open_incident_id
+               window_seconds, open_incident_id, subject_id
           from alert_rule
          where enabled
         """
@@ -107,6 +107,24 @@ async def _measure(clickhouse: ClickHouseQuery, rule: asyncpg.Record) -> float |
         if not rows:
             return None
         return float(rows[0].get("total", 0) or 0.0)
+
+    if metric == "judge_score_avg":
+        sql = """
+            select avg(score) as avg_score
+              from eval_score final
+             where project_id = {project_id:UUID}
+               and eval_config_id = {subject_id:UUID}
+               and judged_at >= now64(9) - toIntervalSecond({window:UInt32})
+        """
+        params = {
+            "project_id": str(project_id),
+            "subject_id": str(rule["subject_id"]),
+            "window": window,
+        }
+        rows = await clickhouse.query(sql, parameters=params)
+        if not rows:
+            return None
+        return _opt_float(rows[0].get("avg_score"))
 
     return None
 
