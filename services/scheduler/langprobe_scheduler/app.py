@@ -12,8 +12,10 @@ import signal
 
 import asyncpg
 import structlog
+from langprobe_api.clickhouse_client import ClickHouseQuery
 
 from .config import Settings, load
+from .ticks.alerts import evaluate_alerts_once
 from .ticks.reaper import reap_once
 
 
@@ -51,6 +53,27 @@ async def reaper_loop(
         await asyncio.sleep(interval_s)
 
 
+async def alert_loop(
+    pool: asyncpg.Pool,
+    clickhouse,
+    *,
+    interval_s: int,
+    _eval=evaluate_alerts_once,
+) -> None:
+    """Periodic alert-evaluator tick. Injectable ``_eval`` for tests."""
+    log = structlog.get_logger("langprobe.scheduler.alerts")
+    log.info("alert loop starting", interval_s=interval_s)
+    while True:
+        try:
+            await _eval(pool, clickhouse)
+        except asyncio.CancelledError:
+            log.info("alert loop stopping")
+            raise
+        except Exception as exc:  # noqa: BLE001 — one bad tick must not kill the loop
+            log.warning("alert tick failed", error=str(exc))
+        await asyncio.sleep(interval_s)
+
+
 async def _serve(settings: Settings) -> None:
     log = structlog.get_logger("langprobe.scheduler")
     pool = await asyncpg.create_pool(settings.pg_dsn, min_size=1, max_size=4)
@@ -59,23 +82,43 @@ async def _serve(settings: Settings) -> None:
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, stop.set)
 
-    task = asyncio.create_task(
-        reaper_loop(
-            pool,
-            interval_s=settings.reaper_interval_s,
-            lease_timeout_s=settings.lease_timeout_s,
-        )
+    clickhouse = ClickHouseQuery(settings.clickhouse_url) if settings.clickhouse_url else None
+
+    tasks = [
+        asyncio.create_task(
+            reaper_loop(
+                pool,
+                interval_s=settings.reaper_interval_s,
+                lease_timeout_s=settings.lease_timeout_s,
+            )
+        ),
+        asyncio.create_task(
+            alert_loop(
+                pool,
+                clickhouse,
+                interval_s=settings.alert_interval_s,
+            )
+        ),
+    ]
+    log.info(
+        "scheduler starting",
+        reaper_interval_s=settings.reaper_interval_s,
+        alert_interval_s=settings.alert_interval_s,
+        clickhouse=bool(settings.clickhouse_url),
     )
-    log.info("scheduler starting", reaper_interval_s=settings.reaper_interval_s)
     try:
         await stop.wait()
     finally:
         log.info("scheduler stopping")
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        if clickhouse is not None:
+            clickhouse.close()
         await pool.close()
 
 

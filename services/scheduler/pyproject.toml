@@ -7,7 +7,11 @@ requires-python = ">=3.11"
 dependencies = [
     "asyncpg>=0.29",
     "structlog>=24.1",
+    "langprobe-api",
 ]
+
+[tool.uv.sources]
+langprobe-api = { workspace = true }
 
 [project.optional-dependencies]
 dev = [
