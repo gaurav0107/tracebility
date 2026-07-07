@@ -114,6 +114,7 @@ async def _measure(clickhouse: ClickHouseQuery, rule: asyncpg.Record) -> float |
               from eval_score final
              where project_id = {project_id:UUID}
                and eval_config_id = {subject_id:UUID}
+               and outcome = 'ok'
                and judged_at >= now64(9) - toIntervalSecond({window:UInt32})
         """
         params = {

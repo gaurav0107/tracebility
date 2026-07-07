@@ -205,7 +205,13 @@ async def _provision_watch_rule(
     recurring judge. Idempotent via alert_rule_judge_watch_uniq, so a
     promote retry never creates a second rule. The alert window is aligned
     to the scoring cadence, clamped to the column's 60..86400 bound."""
-    window_seconds = max(60, min(schedule_seconds, 86400))
+    # The alert window must comfortably exceed the scoring cadence (and the
+    # scheduler's ~300s tick granularity): each scoring batch lands at a single
+    # judged_at, so a window <= cadence empties between batches, the avg query
+    # returns no rows, and the incident falsely resolves then re-fires (flaps).
+    # 3x cadence, floored at 900s, keeps ~3 recent batches in-window for an
+    # actively-scored judge; a genuine traffic stop still empties it and resolves.
+    window_seconds = max(900, min(schedule_seconds * 3, 86400))
     await pool.execute(
         """
         insert into alert_rule (

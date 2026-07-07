@@ -773,7 +773,7 @@ async def test_promote_provisions_watch_rule_idempotently_against_real_db() -> N
         assert rules[0]["metric"] == "judge_score_avg"
         assert rules[0]["comparator"] == "<"
         assert float(rules[0]["threshold"]) == 0.5
-        assert rules[0]["window_seconds"] == 1800
+        assert rules[0]["window_seconds"] == 5400  # 3x the 1800s cadence
 
         # backtest_draft only accepts a promote when its status is `ready`,
         # so flip it back to re-exercise a retried promote of the same

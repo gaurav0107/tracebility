@@ -16,6 +16,7 @@ class _FakeCH:
     async def query(self, sql, parameters=None):
         self.last_params = parameters
         assert "eval_score" in sql
+        assert "outcome = 'ok'" in sql
         return self._rows
 
 

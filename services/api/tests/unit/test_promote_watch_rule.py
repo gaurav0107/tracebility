@@ -19,14 +19,40 @@ async def test_provision_uses_bound_defaults_and_clamps_window(mocker):
         project_id=project_id,
         judge_id=judge_id,
         slug="proposed-abc",
-        schedule_seconds=30,  # below the 60 floor
+        schedule_seconds=30,  # below the 900s floor
         created_by=None,
     )
 
     sql, *args = pool.execute.call_args.args
     assert "judge_score_avg" in sql
     assert "on conflict" in sql.lower()
-    assert 60 in args  # window clamped up to the 60s floor
+    assert 900 in args  # window clamped up to the 900s floor
     assert "<" in args  # comparator
     assert 0.5 in args  # threshold
     assert judge_id in args  # subject binding
+
+    # Mid case: 3x cadence, no clamping.
+    pool.execute.reset_mock()
+    await _provision_watch_rule(
+        pool,
+        project_id=project_id,
+        judge_id=judge_id,
+        slug="proposed-abc",
+        schedule_seconds=3600,
+        created_by=None,
+    )
+    _, *args = pool.execute.call_args.args
+    assert 10800 in args  # 3x cadence
+
+    # Upper clamp: 3x cadence exceeds the 86400s ceiling.
+    pool.execute.reset_mock()
+    await _provision_watch_rule(
+        pool,
+        project_id=project_id,
+        judge_id=judge_id,
+        slug="proposed-abc",
+        schedule_seconds=40000,
+        created_by=None,
+    )
+    _, *args = pool.execute.call_args.args
+    assert 86400 in args  # window clamped down to the 86400s ceiling
