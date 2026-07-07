@@ -43,9 +43,20 @@ log = structlog.get_logger("langprobe.api.alerts")
 
 router = APIRouter(prefix="/v1/alerts", tags=["alerts"])
 
-_METRICS = {"error_rate", "latency_p95_ms", "runs_per_min", "cost_usd"}
+_METRICS = {"error_rate", "latency_p95_ms", "runs_per_min", "cost_usd", "judge_score_avg"}
 _COMPARATORS = {">", ">=", "<", "<="}
 _ROUTE_KINDS = {"slack", "pagerduty", "webhook", "email"}
+
+
+def _validate_subject(metric: str, subject_id: UUID | None) -> None:
+    """Enforce the metric<->subject_id biconditional the DB also checks:
+    judge_score_avg requires a subject (the luna_judge id); the run-based
+    metrics forbid one."""
+    if (metric == "judge_score_avg") != (subject_id is not None):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "subject_id is required for judge_score_avg and forbidden otherwise",
+        )
 
 
 class AlertRoute(BaseModel):
@@ -68,6 +79,7 @@ class AlertRuleOut(BaseModel):
     open_incident_id: UUID | None
     created_at: datetime
     updated_at: datetime
+    subject_id: UUID | None = None
 
 
 class AlertRuleCreate(BaseModel):
@@ -79,6 +91,7 @@ class AlertRuleCreate(BaseModel):
     window_seconds: int = Field(ge=60, le=86400)
     routes: list[AlertRoute] = Field(default_factory=list)
     enabled: bool = True
+    subject_id: UUID | None = None
 
 
 class AlertRulePatch(BaseModel):
@@ -89,6 +102,7 @@ class AlertRulePatch(BaseModel):
     window_seconds: int | None = Field(default=None, ge=60, le=86400)
     routes: list[AlertRoute] | None = None
     enabled: bool | None = None
+    subject_id: UUID | None = None
 
 
 class AlertEventOut(BaseModel):
@@ -129,7 +143,7 @@ async def list_rules(
         """
         select id, project_id, name, metric, comparator, threshold,
                window_seconds, routes, enabled, last_evaluated_at,
-               last_value, open_incident_id, created_at, updated_at
+               last_value, open_incident_id, created_at, updated_at, subject_id
           from alert_rule
          where project_id = $1
          order by created_at desc
@@ -161,6 +175,7 @@ async def create_rule(
                 status.HTTP_400_BAD_REQUEST,
                 f"route kind must be one of {sorted(_ROUTE_KINDS)}",
             )
+    _validate_subject(body.metric, body.subject_id)
 
     pool: asyncpg.Pool = request.app.state.pg
     workspace_id = await _assert_project_role(
@@ -172,12 +187,12 @@ async def create_rule(
         """
         insert into alert_rule (
             project_id, name, metric, comparator, threshold,
-            window_seconds, routes, enabled, created_by
+            window_seconds, routes, enabled, created_by, subject_id
         )
-        values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
+        values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
         returning id, project_id, name, metric, comparator, threshold,
                   window_seconds, routes, enabled, last_evaluated_at,
-                  last_value, open_incident_id, created_at, updated_at
+                  last_value, open_incident_id, created_at, updated_at, subject_id
         """,
         body.project_id,
         body.name,
@@ -188,6 +203,7 @@ async def create_rule(
         routes_json,
         body.enabled,
         principal.user_id,
+        body.subject_id,
     )
     assert row is not None
     await audit.record(
@@ -218,7 +234,9 @@ async def patch_rule(
     principal: Principal = Depends(require_user),
 ) -> AlertRuleOut:
     pool: asyncpg.Pool = request.app.state.pg
-    existing = await pool.fetchrow("select project_id from alert_rule where id = $1", rule_id)
+    existing = await pool.fetchrow(
+        "select project_id, metric, subject_id from alert_rule where id = $1", rule_id
+    )
     if existing is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "alert rule not found")
     project_id: UUID = existing["project_id"]
@@ -234,6 +252,12 @@ async def patch_rule(
         for route in body.routes:
             if route.kind not in _ROUTE_KINDS:
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid route kind")
+    if body.metric is not None or body.subject_id is not None:
+        effective_metric = body.metric if body.metric is not None else existing["metric"]
+        effective_subject = (
+            body.subject_id if body.subject_id is not None else existing["subject_id"]
+        )
+        _validate_subject(effective_metric, effective_subject)
 
     sets: list[str] = []
     args: list[Any] = []
@@ -266,12 +290,14 @@ async def patch_rule(
         )
     if body.enabled is not None:
         _add("enabled", body.enabled)
+    if body.subject_id is not None:
+        _add("subject_id", body.subject_id)
 
     if not sets:
         row = await pool.fetchrow(
             """select id, project_id, name, metric, comparator, threshold,
                       window_seconds, routes, enabled, last_evaluated_at,
-                      last_value, open_incident_id, created_at, updated_at
+                      last_value, open_incident_id, created_at, updated_at, subject_id
                  from alert_rule where id = $1""",
             rule_id,
         )
@@ -285,7 +311,7 @@ async def patch_rule(
         + f" where id = ${idx} "
         + "returning id, project_id, name, metric, comparator, threshold, "
         "window_seconds, routes, enabled, last_evaluated_at, last_value, "
-        "open_incident_id, created_at, updated_at"
+        "open_incident_id, created_at, updated_at, subject_id"
     )
     row = await pool.fetchrow(sql, *args)
     assert row is not None
@@ -424,4 +450,5 @@ def _rule_out(row: asyncpg.Record) -> AlertRuleOut:
         open_incident_id=row["open_incident_id"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        subject_id=row["subject_id"],
     )
