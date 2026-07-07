@@ -135,7 +135,6 @@ async def _apply_rule_decision(
 ) -> None:
     rule_id: UUID = rule["id"]
     project_id: UUID = rule["project_id"]
-    open_event_id: UUID | None = rule["open_incident_id"]
     threshold: float = float(rule["threshold"])
     comparator: str = rule["comparator"]
 
@@ -150,6 +149,15 @@ async def _apply_rule_decision(
         )
         if not got:
             return
+
+        # Re-read the open-incident pointer *under the lock*. ``rule`` carries the
+        # value from the pre-lock scan; try-lock losers skip rather than wait, so
+        # two staggered replicas can both reach this rule with a stale NULL and
+        # both open an incident (the exact double-fire this lock exists to stop)
+        # unless the decision is made on the freshly-read pointer.
+        open_event_id: UUID | None = await conn.fetchval(
+            "select open_incident_id from alert_rule where id = $1", rule_id
+        )
 
         await conn.execute(
             """

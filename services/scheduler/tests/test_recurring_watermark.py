@@ -26,6 +26,7 @@ class _FakeClickHouse:
     def __init__(self, runs: list[dict]) -> None:
         self._runs = runs
         self.inserts: list[list[tuple]] = []
+        self.column_names: list[str] | None = None
 
     async def query(self, sql: str, parameters=None) -> list[dict]:
         wm = parameters["watermark"]
@@ -35,6 +36,7 @@ class _FakeClickHouse:
 
     async def insert(self, table: str, rows, column_names) -> None:
         assert table == "eval_score"
+        self.column_names = list(column_names)
         self.inserts.append(list(rows))
 
 
@@ -174,6 +176,44 @@ async def test_cost_cap_scores_a_prefix_then_resumes(integration_dsn: str) -> No
         assert scored2 == 1
         assert len(ch2.inserts) == 1
         assert len(ch2.inserts[0]) == 2  # remaining 2 runs, 2*0.10 <= 0.25, never exhausted
+    finally:
+        await pool.close()
+
+
+async def test_eval_score_rows_carry_tenant_columns(integration_dsn: str) -> None:
+    """Regression: recurring eval_score inserts must lead with the
+    (org_id, workspace_id) tuple so scores land under the judge's real tenant,
+    not the zero-UUID default. eval_score is keyed on org_id (0006) with no
+    DEFAULT, so an insert that omits it silently poisons the tenant partition
+    and hides the scores from every tenant-scoped read. Mirrors the manual
+    eval path (routers/evals.py); see tenant_scope.resolve_tenant_ids."""
+    pool = await asyncpg.create_pool(integration_dsn, min_size=2, max_size=4)
+    try:
+        t0 = datetime.now(UTC) - timedelta(hours=1)
+        t1 = t0 + timedelta(minutes=10)
+        judge_id, project_id = await _insert_recurring_judge(pool, scored_through=t0)
+        tenant = await pool.fetchrow(
+            """
+            select workspace.org_id as org_id, project.workspace_id as workspace_id
+              from project
+              join workspace on workspace.id = project.workspace_id
+             where project.id = $1
+            """,
+            project_id,
+        )
+        ch = _FakeClickHouse([_run(t1)])
+
+        scored = await evaluate_recurring_once(pool, ch, max_cohort=500, _apply=_fake_apply)
+
+        assert scored == 1
+        # column order + row values both matter: the insert positions must line up.
+        assert ch.column_names is not None
+        assert ch.column_names[:3] == ["org_id", "workspace_id", "project_id"]
+        row = ch.inserts[0][0]
+        zero_uuid = "00000000-0000-0000-0000-000000000000"
+        assert row[0] == str(tenant["org_id"]) != zero_uuid  # org_id, not the default
+        assert row[1] == str(tenant["workspace_id"]) != zero_uuid  # workspace_id
+        assert row[2] == str(project_id)
     finally:
         await pool.close()
 

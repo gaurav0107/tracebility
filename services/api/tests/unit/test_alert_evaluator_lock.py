@@ -93,6 +93,46 @@ async def test_apply_rule_decision_skips_when_lock_held() -> None:
         await pool.close()
 
 
+async def test_apply_rule_decision_rereads_pointer_under_lock() -> None:
+    """Regression: the open-incident decision must be made on a pointer read
+    *under the lock*, not on the value captured in the pre-lock rule scan.
+
+    Two replicas' 60s ticks aren't phase-aligned, and try-lock losers skip
+    rather than wait, so a second evaluator can acquire the lock *after* the
+    first opened the incident while still holding the stale ``open_incident_id
+    = NULL`` from its own tick-start scan. Deciding on that stale value opens a
+    duplicate 'fired' incident and overwrites (leaks) the first — the exact
+    cross-replica double-fire the lock exists to prevent. We reproduce it
+    deterministically by handing the second call the same stale record."""
+    pool = await asyncpg.create_pool(_dsn(), min_size=2, max_size=4)
+    try:
+        rule = await _insert_rule(pool)  # snapshot: open_incident_id is None
+        assert rule["open_incident_id"] is None
+
+        # First evaluator opens the incident.
+        await _apply_rule_decision(pool, rule, 1.0)  # breaches 0.0
+        first_open = await pool.fetchval(
+            "select open_incident_id from alert_rule where id = $1", rule["id"]
+        )
+        assert first_open is not None
+
+        # Second evaluator acts on the SAME stale record (still shows None),
+        # exactly as a staggered replica would from its own pre-lock scan.
+        await _apply_rule_decision(pool, rule, 1.0)
+
+        fired = await pool.fetchval(
+            "select count(*) from alert_event where rule_id = $1 and kind = 'fired'",
+            rule["id"],
+        )
+        open_now = await pool.fetchval(
+            "select open_incident_id from alert_rule where id = $1", rule["id"]
+        )
+        assert fired == 1  # exactly one incident — no double-fire
+        assert open_now == first_open  # pointer not overwritten / first not leaked
+    finally:
+        await pool.close()
+
+
 async def test_apply_rule_decision_opens_incident_when_unlocked() -> None:
     pool = await asyncpg.create_pool(_dsn(), min_size=2, max_size=4)
     try:

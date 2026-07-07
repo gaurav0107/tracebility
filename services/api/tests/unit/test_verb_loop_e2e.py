@@ -84,6 +84,19 @@ def _make_ctx(project_id) -> TenantContext:
     )
 
 
+class _FakeCM:
+    """Minimal async context manager for the fake pool's acquire()/transaction()."""
+
+    def __init__(self, value):
+        self._value = value
+
+    async def __aenter__(self):
+        return self._value
+
+    async def __aexit__(self, *exc):
+        return False
+
+
 class _FakePool:
     """A tiny in-memory stand-in for asyncpg.Pool that backs exactly
     the two tables the loop touches: ``backtest_draft`` and
@@ -101,6 +114,17 @@ class _FakePool:
         self._judge_by_slug: dict[tuple, object] = {}
         self.alert_rules: dict = {}
         self._alert_rule_by_subject_metric: dict[tuple, object] = {}
+
+    def acquire(self):
+        # promote_to_recurring now runs its writes in one transaction:
+        # ``async with pool.acquire() as conn, conn.transaction():``. The fake
+        # is its own "connection" (it already exposes fetchrow/execute), so
+        # acquire just hands back self.
+        return _FakeCM(self)
+
+    def transaction(self):
+        # No-op transaction/savepoint context for the in-memory fake.
+        return _FakeCM(None)
 
     async def fetchrow(self, query: str, *args):
         q = query.strip()

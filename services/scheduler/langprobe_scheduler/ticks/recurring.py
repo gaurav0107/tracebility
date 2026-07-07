@@ -34,6 +34,7 @@ from typing import Any
 import asyncpg
 import structlog
 from langprobe_api.routers.luna_judges import apply_luna_judge, resolve_judge
+from langprobe_api.tenant_scope import resolve_tenant_ids
 
 from langprobe_scheduler.locks import advisory_lock
 
@@ -87,6 +88,12 @@ class _TickBudget:
 
 
 _EVAL_SCORE_COLUMNS = [
+    # Tenant columns first — post-0006 eval_score keys on (org_id, ...) and has
+    # no DEFAULT for them, so an insert that omits them writes the zero-UUID
+    # tenant. Mirror the manual eval path (routers/evals.py). See
+    # tenant_scope.resolve_tenant_ids / test_property_tenant_columns_on_insert.
+    "org_id",
+    "workspace_id",
     "project_id",
     "run_id",
     "span_id",
@@ -188,6 +195,8 @@ async def _score_judge(
         await _bump_seen(conn, judge["id"])
         return False
 
+    # Every eval_score insert must carry the tenant tuple (see _EVAL_SCORE_COLUMNS).
+    org_id, workspace_id = await resolve_tenant_ids(pool, judge["project_id"])
     judged_at = datetime.now(UTC)
     rows: list[tuple[Any, ...]] = []
     new_watermark = watermark
@@ -206,6 +215,8 @@ async def _score_judge(
         outcome = "judge_unavailable" if label == "error" else "ok"
         rows.append(
             (
+                str(org_id),
+                str(workspace_id),
                 str(judge["project_id"]),
                 str(run["run_id"]),
                 None,  # span_id — recurring judges score at the run grain

@@ -105,40 +105,46 @@ async def promote_to_recurring(deps: VerbDeps, ctx: TenantContext, params: Promo
     slug = _slug_for_config(judge_config)
     prompt = judge_config.get("prompt", "")
 
-    judge_id = await _insert_or_get_judge(
-        deps.pool,
-        project_id=draft["project_id"],
-        slug=slug,
-        prompt=prompt,
-        draft_id=draft["id"],
-        created_by=ctx.api_key_id,
-        schedule_seconds=params.schedule_seconds,
-    )
+    # One transaction so "register a recurring judge AND watch it" is atomic:
+    # a failure provisioning the watch rule (or marking the draft promoted) must
+    # not leave a recurring judge that nothing watches. The judge insert runs in
+    # a savepoint (nested transaction) so its idempotent unique-violation
+    # recovery doesn't poison the outer transaction.
+    async with deps.pool.acquire() as conn, conn.transaction():
+        judge_id = await _insert_or_get_judge(
+            conn,
+            project_id=draft["project_id"],
+            slug=slug,
+            prompt=prompt,
+            draft_id=draft["id"],
+            created_by=ctx.api_key_id,
+            schedule_seconds=params.schedule_seconds,
+        )
 
-    await _provision_watch_rule(
-        deps.pool,
-        project_id=draft["project_id"],
-        judge_id=judge_id,
-        slug=slug,
-        schedule_seconds=params.schedule_seconds,
-        created_by=ctx.api_key_id,
-    )
+        await _provision_watch_rule(
+            conn,
+            project_id=draft["project_id"],
+            judge_id=judge_id,
+            slug=slug,
+            schedule_seconds=params.schedule_seconds,
+            created_by=ctx.api_key_id,
+        )
 
-    await deps.pool.execute(
-        """
-        update backtest_draft
-        set status = $2
-        where id = $1
-        """,
-        draft["id"],
-        DraftStatus.PROMOTED.value,
-    )
+        await conn.execute(
+            """
+            update backtest_draft
+            set status = $2
+            where id = $1
+            """,
+            draft["id"],
+            DraftStatus.PROMOTED.value,
+        )
 
     return PromoteOut(judge_id=judge_id)
 
 
 async def _insert_or_get_judge(
-    pool: Any,
+    conn: Any,
     *,
     project_id: UUID,
     slug: str,
@@ -151,36 +157,42 @@ async def _insert_or_get_judge(
     violation (a prior promotion already created it), fetch and return
     that existing judge's id instead. Idempotent by construction.
 
+    Runs on the caller's ``conn`` inside its transaction; the insert is
+    wrapped in a savepoint (nested ``conn.transaction()``) so a unique
+    violation rolls back only the failed insert, not the outer transaction,
+    leaving it usable for the recovery SELECT and the rest of the promote.
+
     Promotion is what makes a judge *recurring*: it stamps
     ``is_recurring``, the cadence, and ``scored_through = now()`` so the
     scheduler scores forward from promotion (the backtest already covered
     history — see 0031_recurring_judges)."""
     try:
-        row = await pool.fetchrow(
-            """
-            insert into luna_judge (
-                project_id, slug, name, description, rubric_prompt,
-                output_format, provider, model, created_by,
-                is_recurring, schedule_seconds, recurring_enabled, scored_through
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                insert into luna_judge (
+                    project_id, slug, name, description, rubric_prompt,
+                    output_format, provider, model, created_by,
+                    is_recurring, schedule_seconds, recurring_enabled, scored_through
+                )
+                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, true, now())
+                returning id
+                """,
+                project_id,
+                slug,
+                f"Proposed judge {slug}",
+                f"promoted from draft {draft_id}",
+                prompt,
+                "score-rationale",
+                "anthropic",
+                PROMOTED_JUDGE_MODEL,
+                created_by,
+                schedule_seconds,
             )
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, true, now())
-            returning id
-            """,
-            project_id,
-            slug,
-            f"Proposed judge {slug}",
-            f"promoted from draft {draft_id}",
-            prompt,
-            "score-rationale",
-            "anthropic",
-            PROMOTED_JUDGE_MODEL,
-            created_by,
-            schedule_seconds,
-        )
         assert row is not None
         return row["id"]
     except asyncpg.UniqueViolationError:
-        existing = await pool.fetchrow(
+        existing = await conn.fetchrow(
             """
             select id from luna_judge
             where project_id = $1 and slug = $2
@@ -193,7 +205,7 @@ async def _insert_or_get_judge(
 
 
 async def _provision_watch_rule(
-    pool: Any,
+    conn: Any,
     *,
     project_id: UUID,
     judge_id: UUID,
@@ -212,7 +224,7 @@ async def _provision_watch_rule(
     # 3x cadence, floored at 900s, keeps ~3 recent batches in-window for an
     # actively-scored judge; a genuine traffic stop still empties it and resolves.
     window_seconds = max(900, min(schedule_seconds * 3, 86400))
-    await pool.execute(
+    await conn.execute(
         """
         insert into alert_rule (
             project_id, name, metric, comparator, threshold,
