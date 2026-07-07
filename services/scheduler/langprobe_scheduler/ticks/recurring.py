@@ -69,6 +69,23 @@ _NEW_RUNS_SQL = """
      limit {limit:UInt32}
 """
 
+
+class _TickBudget:
+    """Soft per-tick dollar budget. Checked after each score, so a tick can
+    overshoot by at most one score's cost — the goal is bounding a firehose,
+    not exact accounting. cap <= 0 means unlimited."""
+
+    def __init__(self, cap_usd: float) -> None:
+        self.cap = cap_usd
+        self.spent = 0.0
+
+    def charge(self, usd: float) -> None:
+        self.spent += usd
+
+    def exhausted(self) -> bool:
+        return self.cap > 0 and self.spent >= self.cap
+
+
 _EVAL_SCORE_COLUMNS = [
     "project_id",
     "run_id",
@@ -92,6 +109,7 @@ async def evaluate_recurring_once(
     clickhouse: Any,
     *,
     max_cohort: int,
+    cost_cap_usd: float = 1.00,
     _apply=apply_luna_judge,
     _resolve=resolve_judge,
 ) -> int:
@@ -100,12 +118,19 @@ async def evaluate_recurring_once(
     ``clickhouse`` is required to read runs and write scores; when it is
     None (scheduler started without LANGPROBE_CLICKHOUSE_URL) the tick is
     a no-op. ``_apply``/``_resolve`` are injectable for tests.
+
+    ``cost_cap_usd`` is a soft dollar ceiling for the whole pass (one
+    ``_TickBudget`` spans every judge scored in this tick) so a firehose
+    project can't make a single tick unbounded. <= 0 disables the cap.
     """
     if clickhouse is None:
         return 0
+    budget = _TickBudget(cost_cap_usd)
     due = await pool.fetch(_DUE_SQL)
     scored = 0
     for judge in due:
+        if budget.exhausted():
+            break  # tick budget spent; remaining judges wait for the next tick
         async with advisory_lock(pool, f"recurring-judge:{judge['id']}") as (conn, got):
             if not got:
                 continue
@@ -113,7 +138,9 @@ async def evaluate_recurring_once(
             if not still_due:
                 continue
             try:
-                if await _score_judge(pool, conn, clickhouse, judge, max_cohort, _apply, _resolve):
+                if await _score_judge(
+                    pool, conn, clickhouse, judge, max_cohort, budget, _apply, _resolve
+                ):
                     scored += 1
             except Exception as exc:  # noqa: BLE001 — one bad judge must not stall the rest
                 log.warning(
@@ -135,6 +162,7 @@ async def _score_judge(
     clickhouse: Any,
     judge: asyncpg.Record,
     max_cohort: int,
+    budget: _TickBudget,
     apply,
     resolve,
 ) -> bool:
@@ -164,7 +192,7 @@ async def _score_judge(
     rows: list[tuple[Any, ...]] = []
     new_watermark = watermark
     for run in runs:
-        score, label, rationale, raw_output = await apply(
+        score, label, rationale, raw_output, cost_usd = await apply(
             judge_cfg,
             pool=pool,
             project_id=judge["project_id"],
@@ -174,6 +202,12 @@ async def _score_judge(
             expected="",
             output_text=run["outputs"] or "",
         )
+        budget.charge(cost_usd)
+        if budget.exhausted():
+            # This call's cost pushed the tick over budget — don't persist
+            # its result or advance the watermark past it; it's still "new"
+            # for the next tick, which will re-score (and re-charge) it.
+            break
         outcome = "judge_unavailable" if label == "error" else "ok"
         rows.append(
             (
@@ -190,7 +224,7 @@ async def _score_judge(
                 raw_output,
                 outcome,
                 judged_at,
-                0,  # cost_usd — dispatch already meters to dispatch_cost
+                cost_usd,  # real per-call cost (was hardcoded 0)
             )
         )
         run_start = _as_utc(run["start_time"])

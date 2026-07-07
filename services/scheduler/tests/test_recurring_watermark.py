@@ -38,8 +38,8 @@ class _FakeClickHouse:
         self.inserts.append(list(rows))
 
 
-async def _fake_apply(judge_cfg, **kwargs) -> tuple[float, str, str, str]:
-    return 0.2, "fail", "stub rationale", "score: 0.2"
+async def _fake_apply(judge_cfg, **kwargs) -> tuple[float, str, str, str, float]:
+    return 0.2, "fail", "stub rationale", "score: 0.2", 0.0
 
 
 async def _insert_project(pool: asyncpg.Pool):
@@ -132,6 +132,46 @@ async def test_no_new_runs_is_a_noop(integration_dsn: str) -> None:
         )
         assert row["scored_through"] == t0  # watermark unmoved
         assert row["last_scored_at"] is not None  # but marked seen
+    finally:
+        await pool.close()
+
+
+async def test_cost_cap_scores_a_prefix_then_resumes(integration_dsn: str) -> None:
+    """A cap that only affords 2 of 5 runs scores the oldest 2, advances
+    scored_through to the 2nd run, and the next tick finishes the rest."""
+
+    async def _priced_apply(judge_cfg, **kwargs) -> tuple[float, str, str, str, float]:
+        return 1.0, "pass", "", "", 0.10
+
+    pool = await asyncpg.create_pool(integration_dsn, min_size=2, max_size=4)
+    try:
+        t0 = datetime.now(UTC) - timedelta(hours=1)
+        runs = [_run(t0 + timedelta(minutes=i)) for i in range(1, 6)]
+        judge_id, _ = await _insert_recurring_judge(pool, scored_through=t0)
+        ch = _FakeClickHouse(runs)
+
+        scored = await evaluate_recurring_once(
+            pool, ch, max_cohort=500, cost_cap_usd=0.25, _apply=_priced_apply
+        )
+
+        assert scored == 1
+        assert len(ch.inserts) == 1
+        assert len(ch.inserts[0]) == 2  # 2*0.10 <= 0.25 < 3*0.10
+        row = await pool.fetchrow("select scored_through from luna_judge where id = $1", judge_id)
+        assert row["scored_through"] == runs[1]["start_time"]  # watermark at 2nd scored run
+
+        # Next tick: simulate the cadence elapsing (real time won't in this
+        # test) so the judge is due again; only the un-scored runs are still
+        # "new" (past the watermark).
+        await pool.execute("update luna_judge set last_scored_at = null where id = $1", judge_id)
+        ch2 = _FakeClickHouse(runs)
+        scored2 = await evaluate_recurring_once(
+            pool, ch2, max_cohort=500, cost_cap_usd=0.25, _apply=_priced_apply
+        )
+
+        assert scored2 == 1
+        assert len(ch2.inserts) == 1
+        assert len(ch2.inserts[0]) == 2  # capped again over the remaining 3 runs
     finally:
         await pool.close()
 

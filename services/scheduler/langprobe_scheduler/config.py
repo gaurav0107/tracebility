@@ -24,6 +24,9 @@ class Settings:
     # project can't make one tick unbounded — the watermark just lags and
     # the next tick catches up. Mirrors verbs/backtest.py MAX_COHORT.
     recurring_max_cohort: int = 500
+    # Soft per-tick dollar ceiling across all judges scored in one pass, so a
+    # firehose project can't make a tick unbounded. <= 0 disables the cap.
+    recurring_tick_cost_cap_usd: float = 1.00
 
 
 def load() -> Settings:
@@ -39,4 +42,7 @@ def load() -> Settings:
         alert_interval_s=int(os.environ.get("LANGPROBE_SCHEDULER_ALERT_INTERVAL_S", "60")),
         recurring_interval_s=int(os.environ.get("LANGPROBE_SCHEDULER_RECURRING_INTERVAL_S", "300")),
         recurring_max_cohort=int(os.environ.get("LANGPROBE_SCHEDULER_MAX_COHORT", "500")),
+        recurring_tick_cost_cap_usd=float(
+            os.environ.get("LANGPROBE_SCHEDULER_TICK_COST_CAP_USD", "1.00")
+        ),
     )

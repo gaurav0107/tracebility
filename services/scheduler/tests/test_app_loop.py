@@ -46,12 +46,12 @@ async def test_reaper_loop_survives_a_failing_tick() -> None:
 async def test_recurring_loop_invokes_eval_with_max_cohort() -> None:
     seen: list[int] = []
 
-    async def fake_eval(pool, clickhouse, *, max_cohort: int) -> int:
+    async def fake_eval(pool, clickhouse, *, max_cohort: int, cost_cap_usd: float) -> int:
         seen.append(max_cohort)
         return 0
 
     task = asyncio.create_task(
-        recurring_loop(None, None, interval_s=0, max_cohort=42, _eval=fake_eval)
+        recurring_loop(None, None, interval_s=0, max_cohort=42, cost_cap_usd=1.00, _eval=fake_eval)
     )
     await asyncio.sleep(0.05)
     task.cancel()

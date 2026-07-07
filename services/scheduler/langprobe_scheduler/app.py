@@ -81,6 +81,7 @@ async def recurring_loop(
     *,
     interval_s: int,
     max_cohort: int,
+    cost_cap_usd: float,
     _eval=evaluate_recurring_once,
 ) -> None:
     """Periodic recurring-judge tick. Injectable ``_eval`` for tests."""
@@ -88,7 +89,7 @@ async def recurring_loop(
     log.info("recurring loop starting", interval_s=interval_s, max_cohort=max_cohort)
     while True:
         try:
-            scored = await _eval(pool, clickhouse, max_cohort=max_cohort)
+            scored = await _eval(pool, clickhouse, max_cohort=max_cohort, cost_cap_usd=cost_cap_usd)
             if scored:
                 log.info("recurring tick done", judges_scored=scored)
         except asyncio.CancelledError:
@@ -130,6 +131,7 @@ async def _serve(settings: Settings) -> None:
                 clickhouse,
                 interval_s=settings.recurring_interval_s,
                 max_cohort=settings.recurring_max_cohort,
+                cost_cap_usd=settings.recurring_tick_cost_cap_usd,
             )
         ),
     ]

@@ -66,3 +66,14 @@ def test_load_recurring_overrides(monkeypatch):
     settings = load()
     assert settings.recurring_interval_s == 120
     assert settings.recurring_max_cohort == 50
+
+
+def test_cost_cap_default_and_override(monkeypatch):
+    from langprobe_scheduler.config import load
+
+    monkeypatch.setenv("LANGPROBE_PG_DSN", "postgresql://x")
+    monkeypatch.delenv("LANGPROBE_SCHEDULER_TICK_COST_CAP_USD", raising=False)
+    assert load().recurring_tick_cost_cap_usd == 1.00
+
+    monkeypatch.setenv("LANGPROBE_SCHEDULER_TICK_COST_CAP_USD", "0.25")
+    assert load().recurring_tick_cost_cap_usd == 0.25
