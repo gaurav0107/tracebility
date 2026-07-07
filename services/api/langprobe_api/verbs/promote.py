@@ -107,6 +107,7 @@ async def promote_to_recurring(deps: VerbDeps, ctx: TenantContext, params: Promo
         prompt=prompt,
         draft_id=draft["id"],
         created_by=ctx.api_key_id,
+        schedule_seconds=params.schedule_seconds,
     )
 
     await deps.pool.execute(
@@ -130,18 +131,25 @@ async def _insert_or_get_judge(
     prompt: str,
     draft_id: UUID,
     created_by: UUID | None,
+    schedule_seconds: int,
 ) -> UUID:
     """Insert a new ``luna_judge`` for (project_id, slug); on a unique
     violation (a prior promotion already created it), fetch and return
-    that existing judge's id instead. Idempotent by construction."""
+    that existing judge's id instead. Idempotent by construction.
+
+    Promotion is what makes a judge *recurring*: it stamps
+    ``is_recurring``, the cadence, and ``scored_through = now()`` so the
+    scheduler scores forward from promotion (the backtest already covered
+    history — see 0031_recurring_judges)."""
     try:
         row = await pool.fetchrow(
             """
             insert into luna_judge (
                 project_id, slug, name, description, rubric_prompt,
-                output_format, provider, model, created_by
+                output_format, provider, model, created_by,
+                is_recurring, schedule_seconds, recurring_enabled, scored_through
             )
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, true, now())
             returning id
             """,
             project_id,
@@ -153,6 +161,7 @@ async def _insert_or_get_judge(
             "anthropic",
             PROMOTED_JUDGE_MODEL,
             created_by,
+            schedule_seconds,
         )
         assert row is not None
         return row["id"]
