@@ -144,9 +144,11 @@ services:
       dockerfile: services/scheduler/Dockerfile
     environment:
       LANGPROBE_PG_DSN: postgres://langprobe:${POSTGRES_PASSWORD:-langprobe}@postgres:5432/langprobe
+      LANGPROBE_CLICKHOUSE_URL: http://langprobe:${CLICKHOUSE_PASSWORD:-langprobe}@clickhouse:8123/langprobe
       LANGPROBE_LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
       postgres: { condition: service_healthy }
+      clickhouse: { condition: service_healthy }
     restart: unless-stopped
 
   web:

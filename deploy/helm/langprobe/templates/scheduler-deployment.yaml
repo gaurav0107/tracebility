@@ -37,6 +37,7 @@ spec:
             - name: LANGPROBE_LOG_LEVEL
               value: {{ .Values.logging.level | quote }}
             {{- include "langprobe.envFromSecret" (dict "cfg" .Values.postgres "name" "LANGPROBE_PG_DSN") | nindent 12 }}
+            {{- include "langprobe.envFromSecret" (dict "cfg" .Values.clickhouse "name" "LANGPROBE_CLICKHOUSE_URL") | nindent 12 }}
           resources:
             {{- toYaml .Values.scheduler.resources | nindent 12 }}
       {{- with .Values.scheduler.nodeSelector }}

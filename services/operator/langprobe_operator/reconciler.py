@@ -233,6 +233,9 @@ def build_manifests(*, name: str, namespace: str, spec: dict[str, Any]) -> list[
     e = env_from_secret("LANGPROBE_PG_DSN", secrets.get("postgres"))
     if e:
         scheduler_envs.append(e)
+    e = env_from_secret("LANGPROBE_CLICKHOUSE_URL", secrets.get("clickhouse"))
+    if e:
+        scheduler_envs.append(e)
 
     web_envs: list[dict[str, Any]] = [
         {"name": "NODE_ENV", "value": "production"},
