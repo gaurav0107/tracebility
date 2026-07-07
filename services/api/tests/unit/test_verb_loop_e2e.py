@@ -193,9 +193,21 @@ class _FakePool:
             }
 
         if "insert into luna_judge" in q:
-            (project_id, slug, name, description, prompt, output_format, provider, model, _cb) = (
-                args
-            )
+            # promote stamps the recurring cadence: ... model, created_by,
+            # schedule_seconds (is_recurring/recurring_enabled/scored_through
+            # are SQL literals, not bound args).
+            (
+                project_id,
+                slug,
+                name,
+                description,
+                prompt,
+                output_format,
+                provider,
+                model,
+                _cb,
+                schedule_seconds,
+            ) = args
             key = (project_id, slug)
             if key in self._judge_by_slug:
                 import asyncpg
@@ -203,7 +215,13 @@ class _FakePool:
                 raise asyncpg.UniqueViolationError("duplicate key")
             judge_id = uuid4()
             self._judge_by_slug[key] = judge_id
-            self.judges[judge_id] = {"project_id": project_id, "slug": slug, "prompt": prompt}
+            self.judges[judge_id] = {
+                "project_id": project_id,
+                "slug": slug,
+                "prompt": prompt,
+                "schedule_seconds": schedule_seconds,
+                "is_recurring": True,
+            }
             return {"id": judge_id}
 
         if "select id from luna_judge" in q:

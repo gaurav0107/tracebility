@@ -48,3 +48,21 @@ def test_load_clickhouse_and_alert_overrides(monkeypatch):
     settings = load()
     assert settings.clickhouse_url == "http://ch:8123"
     assert settings.alert_interval_s == 15
+
+
+def test_load_recurring_defaults(monkeypatch):
+    monkeypatch.setenv("LANGPROBE_PG_DSN", "postgres://x/y")
+    monkeypatch.delenv("LANGPROBE_SCHEDULER_RECURRING_INTERVAL_S", raising=False)
+    monkeypatch.delenv("LANGPROBE_SCHEDULER_MAX_COHORT", raising=False)
+    settings = load()
+    assert settings.recurring_interval_s == 300
+    assert settings.recurring_max_cohort == 500
+
+
+def test_load_recurring_overrides(monkeypatch):
+    monkeypatch.setenv("LANGPROBE_PG_DSN", "postgres://x/y")
+    monkeypatch.setenv("LANGPROBE_SCHEDULER_RECURRING_INTERVAL_S", "120")
+    monkeypatch.setenv("LANGPROBE_SCHEDULER_MAX_COHORT", "50")
+    settings = load()
+    assert settings.recurring_interval_s == 120
+    assert settings.recurring_max_cohort == 50
