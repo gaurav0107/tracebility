@@ -69,9 +69,12 @@ jobs:
             psql -h localhost -U pg -d langprobe -v ON_ERROR_STOP=1 -q -f "$f"
           done
       - name: pytest — scheduler + api
+        # --extra dev pulls in the test tooling (pytest, pytest-asyncio,
+        # pytest-mock); it lives in [project.optional-dependencies].dev, which
+        # `uv run` does not install by default.
         run: |
-          uv run --project services/scheduler pytest services/scheduler/tests -q
-          uv run --project services/api pytest services/api/tests -q
+          uv run --project services/scheduler --extra dev pytest services/scheduler/tests -q
+          uv run --project services/api --extra dev pytest services/api/tests -q
 
   typescript:
     name: typescript
