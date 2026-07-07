@@ -203,11 +203,6 @@ async def _score_judge(
             output_text=run["outputs"] or "",
         )
         budget.charge(cost_usd)
-        if budget.exhausted():
-            # This call's cost pushed the tick over budget — don't persist
-            # its result or advance the watermark past it; it's still "new"
-            # for the next tick, which will re-score (and re-charge) it.
-            break
         outcome = "judge_unavailable" if label == "error" else "ok"
         rows.append(
             (
@@ -230,6 +225,12 @@ async def _score_judge(
         run_start = _as_utc(run["start_time"])
         if run_start > new_watermark:
             new_watermark = run_start
+        if budget.exhausted():
+            # This call's cost pushed the tick over budget. It's already
+            # recorded + watermarked (append-then-check), so the next tick
+            # won't re-score (and re-pay for) it — the tick just overshoots
+            # by at most one score's cost, which is the intended tradeoff.
+            break
 
     await clickhouse.insert("eval_score", rows, column_names=_EVAL_SCORE_COLUMNS)
     await conn.execute(

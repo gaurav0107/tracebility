@@ -137,8 +137,10 @@ async def test_no_new_runs_is_a_noop(integration_dsn: str) -> None:
 
 
 async def test_cost_cap_scores_a_prefix_then_resumes(integration_dsn: str) -> None:
-    """A cap that only affords 2 of 5 runs scores the oldest 2, advances
-    scored_through to the 2nd run, and the next tick finishes the rest."""
+    """A cap that only affords 2 of 5 runs still records the tipping (3rd)
+    run — append-then-check overshoots by at most one score's cost rather
+    than discarding the paid-for call — and advances scored_through to
+    that 3rd run; the next tick finishes the rest."""
 
     async def _priced_apply(judge_cfg, **kwargs) -> tuple[float, str, str, str, float]:
         return 1.0, "pass", "", "", 0.10
@@ -156,9 +158,9 @@ async def test_cost_cap_scores_a_prefix_then_resumes(integration_dsn: str) -> No
 
         assert scored == 1
         assert len(ch.inserts) == 1
-        assert len(ch.inserts[0]) == 2  # 2*0.10 <= 0.25 < 3*0.10
+        assert len(ch.inserts[0]) == 3  # 2*0.10 <= 0.25, tipping 3rd run still recorded
         row = await pool.fetchrow("select scored_through from luna_judge where id = $1", judge_id)
-        assert row["scored_through"] == runs[1]["start_time"]  # watermark at 2nd scored run
+        assert row["scored_through"] == runs[2]["start_time"]  # watermark at 3rd (tipping) run
 
         # Next tick: simulate the cadence elapsing (real time won't in this
         # test) so the judge is due again; only the un-scored runs are still
@@ -171,7 +173,7 @@ async def test_cost_cap_scores_a_prefix_then_resumes(integration_dsn: str) -> No
 
         assert scored2 == 1
         assert len(ch2.inserts) == 1
-        assert len(ch2.inserts[0]) == 2  # capped again over the remaining 3 runs
+        assert len(ch2.inserts[0]) == 2  # remaining 2 runs, 2*0.10 <= 0.25, never exhausted
     finally:
         await pool.close()
 
