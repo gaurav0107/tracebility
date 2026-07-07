@@ -48,6 +48,11 @@ from langprobe_api.verbs.scope import ScopeError, require_project_scope
 # scoring behavior isn't a surprise relative to what backtested it.
 PROMOTED_JUDGE_MODEL = "claude-3-5-haiku-latest"
 
+# Default watch rule stamped on promotion. luna scores are higher-is-better,
+# so we fire when the judge's windowed average quality drops below this.
+_WATCH_THRESHOLD = 0.5
+_WATCH_COMPARATOR = "<"
+
 
 class ApprovalRequiredError(Exception):
     """Raised when ``approval_token`` is empty/blank. No judge is
@@ -108,6 +113,15 @@ async def promote_to_recurring(deps: VerbDeps, ctx: TenantContext, params: Promo
         draft_id=draft["id"],
         created_by=ctx.api_key_id,
         schedule_seconds=params.schedule_seconds,
+    )
+
+    await _provision_watch_rule(
+        deps.pool,
+        project_id=draft["project_id"],
+        judge_id=judge_id,
+        slug=slug,
+        schedule_seconds=params.schedule_seconds,
+        created_by=ctx.api_key_id,
     )
 
     await deps.pool.execute(
@@ -176,3 +190,36 @@ async def _insert_or_get_judge(
         )
         assert existing is not None
         return existing["id"]
+
+
+async def _provision_watch_rule(
+    pool: Any,
+    *,
+    project_id: UUID,
+    judge_id: UUID,
+    slug: str,
+    schedule_seconds: int,
+    created_by: UUID | None,
+) -> None:
+    """Create the default judge_score_avg alert rule that watches this
+    recurring judge. Idempotent via alert_rule_judge_watch_uniq, so a
+    promote retry never creates a second rule. The alert window is aligned
+    to the scoring cadence, clamped to the column's 60..86400 bound."""
+    window_seconds = max(60, min(schedule_seconds, 86400))
+    await pool.execute(
+        """
+        insert into alert_rule (
+            project_id, name, metric, comparator, threshold,
+            window_seconds, subject_id, enabled, created_by
+        )
+        values ($1, $2, 'judge_score_avg', $3, $4, $5, $6, true, $7)
+        on conflict (subject_id, metric) where subject_id is not null do nothing
+        """,
+        project_id,
+        f"Judge {slug} quality watch",
+        _WATCH_COMPARATOR,
+        _WATCH_THRESHOLD,
+        window_seconds,
+        judge_id,
+        created_by,
+    )
