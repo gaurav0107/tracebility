@@ -30,8 +30,20 @@ class _FakeClickHouse:
 
     async def query(self, sql: str, parameters=None) -> list[dict]:
         wm = parameters["watermark"]
-        fresh = [r for r in self._runs if r["start_time"] > wm]
-        fresh.sort(key=lambda r: r["start_time"])
+        wm_run_id = parameters.get("watermark_run_id")
+        if wm_run_id is not None:
+            # Composite (start_time, run_id) cursor: filter and order by the
+            # same tuple, mirroring the real `(start_time, run_id) > (...)` SQL.
+            def key(r):
+                return (r["start_time"], str(r["run_id"]))
+
+            cursor = (wm, str(wm_run_id))
+            fresh = [r for r in self._runs if key(r) > cursor]
+            fresh.sort(key=key)
+        else:
+            # Legacy time-only cursor (pre-fix code path).
+            fresh = [r for r in self._runs if r["start_time"] > wm]
+            fresh.sort(key=lambda r: r["start_time"])
         return fresh[: parameters["limit"]]
 
     async def insert(self, table: str, rows, column_names) -> None:
@@ -214,6 +226,44 @@ async def test_eval_score_rows_carry_tenant_columns(integration_dsn: str) -> Non
         assert row[0] == str(tenant["org_id"]) != zero_uuid  # org_id, not the default
         assert row[1] == str(tenant["workspace_id"]) != zero_uuid  # workspace_id
         assert row[2] == str(project_id)
+    finally:
+        await pool.close()
+
+
+async def test_start_time_tie_at_cohort_boundary_is_not_dropped(integration_dsn: str) -> None:
+    """Regression (issue #1): two runs sharing an identical start_time must
+    both be scored even when the max_cohort cap splits the tie group across
+    ticks. A pure `start_time > watermark` cursor advances to the boundary
+    timestamp and the strict `>` then skips the tie survivor forever; the
+    composite (start_time, run_id) cursor drains it on the next tick instead.
+    """
+    pool = await asyncpg.create_pool(integration_dsn, min_size=2, max_size=4)
+    try:
+        t0 = datetime.now(UTC) - timedelta(hours=1)
+        t1 = t0 + timedelta(minutes=10)
+        t2 = t0 + timedelta(minutes=20)
+        # A@t1, then B and C sharing t2 (distinct run_ids) — the tie.
+        a = _run(t1)
+        b = _run(t2)
+        c = _run(t2)
+        all_ids = {str(a["run_id"]), str(b["run_id"]), str(c["run_id"])}
+        judge_id, _ = await _insert_recurring_judge(pool, scored_through=t0)
+
+        scored_ids: set[str] = set()
+        # cap=2 forces the t2 tie group to straddle the cohort boundary.
+        ch1 = _FakeClickHouse([a, b, c])
+        await evaluate_recurring_once(pool, ch1, max_cohort=2, _apply=_fake_apply)
+        for batch in ch1.inserts:
+            scored_ids.update(row[3] for row in batch)  # row[3] = run_id (see column order)
+
+        # Make the judge due again and run a second tick over the same runs.
+        await pool.execute("update luna_judge set last_scored_at = null where id = $1", judge_id)
+        ch2 = _FakeClickHouse([a, b, c])
+        await evaluate_recurring_once(pool, ch2, max_cohort=2, _apply=_fake_apply)
+        for batch in ch2.inserts:
+            scored_ids.update(row[3] for row in batch)
+
+        assert scored_ids == all_ids  # every run scored — the tie survivor is not dropped
     finally:
         await pool.close()
 

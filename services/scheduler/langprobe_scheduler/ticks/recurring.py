@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 import asyncpg
 import structlog
@@ -40,9 +41,13 @@ from langprobe_scheduler.locks import advisory_lock
 
 log = structlog.get_logger("langprobe.scheduler.recurring")
 
+# Minimum UUID, used as the "start of stream" run_id when a judge has never
+# been scored (scored_through_run_id IS NULL): every real run_id sorts after it.
+_ZERO_UUID = "00000000-0000-0000-0000-000000000000"
+
 # Judges whose last run is older than their cadence.
 _DUE_SQL = """
-    select id, project_id, slug, scored_through
+    select id, project_id, slug, scored_through, scored_through_run_id
       from luna_judge
      where is_recurring and recurring_enabled and deleted_at is null
        and (last_scored_at is null
@@ -61,12 +66,20 @@ _STILL_DUE_SQL = """
 
 # New traffic since the watermark, oldest-first + capped, so a backlog
 # larger than max_cohort drains monotonically across successive ticks.
+#
+# The cursor is the composite (start_time, run_id), not start_time alone:
+# a strict `start_time >` watermark strands runs that share the boundary
+# timestamp with the last-scored run (realistic — SDKs stamp start_time at
+# ms/s granularity, so a busy project lands several runs in one instant, and
+# the tie can straddle the max_cohort cap). Comparing and ordering by the
+# same tuple makes pagination total — every run is visited exactly once and
+# a timestamp with more runs than the cap simply drains across ticks.
 _NEW_RUNS_SQL = """
     select run_id, start_time, inputs, outputs
       from run final
      where project_id = {project_id:UUID}
-       and start_time > {watermark:DateTime64(9)}
-     order by start_time asc
+       and (start_time, run_id) > ({watermark:DateTime64(9)}, {watermark_run_id:UUID})
+     order by start_time asc, run_id asc
      limit {limit:UInt32}
 """
 
@@ -183,11 +196,13 @@ async def _score_judge(
         return False
 
     watermark = judge["scored_through"] or datetime.now(UTC)
+    watermark_run_id = str(judge["scored_through_run_id"] or _ZERO_UUID)
     runs = await clickhouse.query(
         _NEW_RUNS_SQL,
         parameters={
             "project_id": str(judge["project_id"]),
             "watermark": watermark,
+            "watermark_run_id": watermark_run_id,
             "limit": max_cohort,
         },
     )
@@ -199,7 +214,11 @@ async def _score_judge(
     org_id, workspace_id = await resolve_tenant_ids(pool, judge["project_id"])
     judged_at = datetime.now(UTC)
     rows: list[tuple[Any, ...]] = []
+    # Cursor advances to the last run actually scored. Runs arrive ordered by
+    # (start_time, run_id) asc, so each scored run is the new high-water cursor;
+    # on a cost-cap break this lands exactly on the tipping run (no gap, no skip).
     new_watermark = watermark
+    new_watermark_run_id = watermark_run_id
     for run in runs:
         score, label, rationale, raw_output, cost_usd = await apply(
             judge_cfg,
@@ -233,9 +252,8 @@ async def _score_judge(
                 cost_usd,  # real per-call cost (was hardcoded 0)
             )
         )
-        run_start = _as_utc(run["start_time"])
-        if run_start > new_watermark:
-            new_watermark = run_start
+        new_watermark = _as_utc(run["start_time"])
+        new_watermark_run_id = str(run["run_id"])
         if budget.exhausted():
             # This call's cost pushed the tick over budget. It's already
             # recorded + watermarked (append-then-check), so the next tick
@@ -247,11 +265,13 @@ async def _score_judge(
     await conn.execute(
         """
         update luna_judge
-           set scored_through = $2, last_scored_at = now(), last_score_error = null
+           set scored_through = $2, scored_through_run_id = $3,
+               last_scored_at = now(), last_score_error = null
          where id = $1
         """,
         judge["id"],
         new_watermark,
+        UUID(new_watermark_run_id),
     )
     log.info("scored recurring judge", judge_id=str(judge["id"]), runs=len(rows))
     return True
