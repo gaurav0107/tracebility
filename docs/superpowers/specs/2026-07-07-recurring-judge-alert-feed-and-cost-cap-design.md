@@ -1,7 +1,7 @@
 # Recurring-judge alert feed + per-tick cost cap — design
 
 > Date: 2026-07-07
-> Status: approved for implementation
+> Status: implemented
 > Depends on: Phase 3 (PR #51 recurring-judge tick, migration `0031`, `promote_to_recurring` cadence wiring)
 > Parent design: `2026-07-05-recurring-judge-scheduler-design.md` (this completes its Phase 3)
 
