@@ -19,6 +19,11 @@ class Settings:
     log_level: str = "INFO"
     clickhouse_url: str | None = None
     alert_interval_s: int = 60
+    recurring_interval_s: int = 300
+    # Per-tick cap on runs scored for a single judge, so a firehose
+    # project can't make one tick unbounded — the watermark just lags and
+    # the next tick catches up. Mirrors verbs/backtest.py MAX_COHORT.
+    recurring_max_cohort: int = 500
 
 
 def load() -> Settings:
@@ -32,4 +37,6 @@ def load() -> Settings:
         log_level=os.environ.get("LANGPROBE_LOG_LEVEL", "INFO"),
         clickhouse_url=os.environ.get("LANGPROBE_CLICKHOUSE_URL"),
         alert_interval_s=int(os.environ.get("LANGPROBE_SCHEDULER_ALERT_INTERVAL_S", "60")),
+        recurring_interval_s=int(os.environ.get("LANGPROBE_SCHEDULER_RECURRING_INTERVAL_S", "300")),
+        recurring_max_cohort=int(os.environ.get("LANGPROBE_SCHEDULER_MAX_COHORT", "500")),
     )

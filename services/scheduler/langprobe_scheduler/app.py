@@ -17,6 +17,7 @@ from langprobe_api.clickhouse_client import ClickHouseQuery
 from .config import Settings, load
 from .ticks.alerts import evaluate_alerts_once
 from .ticks.reaper import reap_once
+from .ticks.recurring import evaluate_recurring_once
 
 
 def _configure_logging(level: str) -> None:
@@ -74,6 +75,30 @@ async def alert_loop(
         await asyncio.sleep(interval_s)
 
 
+async def recurring_loop(
+    pool: asyncpg.Pool,
+    clickhouse,
+    *,
+    interval_s: int,
+    max_cohort: int,
+    _eval=evaluate_recurring_once,
+) -> None:
+    """Periodic recurring-judge tick. Injectable ``_eval`` for tests."""
+    log = structlog.get_logger("langprobe.scheduler.recurring")
+    log.info("recurring loop starting", interval_s=interval_s, max_cohort=max_cohort)
+    while True:
+        try:
+            scored = await _eval(pool, clickhouse, max_cohort=max_cohort)
+            if scored:
+                log.info("recurring tick done", judges_scored=scored)
+        except asyncio.CancelledError:
+            log.info("recurring loop stopping")
+            raise
+        except Exception as exc:  # noqa: BLE001 — one bad tick must not kill the loop
+            log.warning("recurring tick failed", error=str(exc))
+        await asyncio.sleep(interval_s)
+
+
 async def _serve(settings: Settings) -> None:
     log = structlog.get_logger("langprobe.scheduler")
     pool = await asyncpg.create_pool(settings.pg_dsn, min_size=1, max_size=4)
@@ -99,11 +124,20 @@ async def _serve(settings: Settings) -> None:
                 interval_s=settings.alert_interval_s,
             )
         ),
+        asyncio.create_task(
+            recurring_loop(
+                pool,
+                clickhouse,
+                interval_s=settings.recurring_interval_s,
+                max_cohort=settings.recurring_max_cohort,
+            )
+        ),
     ]
     log.info(
         "scheduler starting",
         reaper_interval_s=settings.reaper_interval_s,
         alert_interval_s=settings.alert_interval_s,
+        recurring_interval_s=settings.recurring_interval_s,
         clickhouse=bool(settings.clickhouse_url),
     )
     try:
