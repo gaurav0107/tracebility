@@ -17,6 +17,8 @@ class Settings:
     reaper_interval_s: int = 60
     lease_timeout_s: int = 120
     log_level: str = "INFO"
+    clickhouse_url: str | None = None
+    alert_interval_s: int = 60
 
 
 def load() -> Settings:
@@ -28,4 +30,6 @@ def load() -> Settings:
         reaper_interval_s=int(os.environ.get("LANGPROBE_SCHEDULER_REAPER_INTERVAL_S", "60")),
         lease_timeout_s=int(os.environ.get("LANGPROBE_SCHEDULER_LEASE_TIMEOUT_S", "120")),
         log_level=os.environ.get("LANGPROBE_LOG_LEVEL", "INFO"),
+        clickhouse_url=os.environ.get("LANGPROBE_CLICKHOUSE_URL"),
+        alert_interval_s=int(os.environ.get("LANGPROBE_SCHEDULER_ALERT_INTERVAL_S", "60")),
     )
