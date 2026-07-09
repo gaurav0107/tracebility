@@ -1,6 +1,11 @@
 ---
+# In-cluster Postgres for the GKE deploy. Runs as a StatefulSet with a
+# PersistentVolumeClaim so the data survives pod restarts / rescheduling —
+# on GKE Autopilot pods are recreated routinely (node auto-repair,
+# bin-packing, upgrades), and an emptyDir would silently lose every table
+# on each move. See README.md for the managed-database migration path.
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: postgres
   namespace: langprobe
@@ -8,9 +13,8 @@ metadata:
     app.kubernetes.io/name: postgres
     app.kubernetes.io/component: dev-deps
 spec:
+  serviceName: postgres
   replicas: 1
-  strategy:
-    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: postgres
@@ -36,6 +40,8 @@ spec:
                 secretKeyRef:
                   name: langprobe-db-bootstrap
                   key: postgres_password
+            # Keep PGDATA in a subdirectory of the mount so Postgres does not
+            # trip over the volume's lost+found on first init.
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           ports:
@@ -56,9 +62,15 @@ spec:
             limits:
               cpu: 1000m
               memory: 1Gi
-      volumes:
-        - name: data
-          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard-rwo
+        resources:
+          requests:
+            storage: 10Gi
 ---
 apiVersion: v1
 kind: Service
