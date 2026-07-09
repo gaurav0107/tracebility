@@ -1,11 +1,19 @@
 # dev-deps
 
-Ephemeral, single-replica Postgres / ClickHouse / Redis applied directly with
-`kubectl` — **not** managed by the Helm chart.
+Single-replica Postgres / ClickHouse / Redis applied directly with `kubectl`
+— **not** managed by the Helm chart.
 
-Purpose: let the first GKE deploy of `langprobe` reach Ready without
-requiring managed databases up front. Storage is `emptyDir`; deleting a pod
-loses the data.
+Purpose: let the GKE deploy of `langprobe` reach Ready without requiring
+managed databases up front. Postgres and ClickHouse run as **StatefulSets
+backed by a `standard-rwo` PersistentVolumeClaim** (`volumeClaimTemplates`)
+so their data survives pod restarts and rescheduling. This matters on GKE
+Autopilot, where pods are recreated routinely (node auto-repair,
+bin-packing, upgrades) — the earlier `emptyDir` setup silently wiped every
+table on each pod move, which took down `app.langprobe.com` (all
+Postgres-backed features 500'd until the schema was re-migrated). The PVCs
+are **not** deleted when the StatefulSet is deleted; remove them explicitly
+(`kubectl delete pvc -n langprobe data-postgres-0 data-clickhouse-0`) when
+you tear these down.
 
 > **Security:** these are throwaway pods with no NetworkPolicy in front of
 > them, so any workload that can reach the `postgres`/`clickhouse` Services
@@ -45,9 +53,16 @@ Once switched, delete the dev-deps:
 kubectl delete -n langprobe -f deploy/k8s/dev-deps/
 ```
 
-## Why not StatefulSets?
+## Why StatefulSets + PVCs?
 
-A StatefulSet + PVC is the right answer when you actually want the data to
-survive a pod restart. The premise of dev-deps is "you'll replace these
-within a week" — adding PVCs adds GCE Persistent Disks that you then have to
-remember to delete. `emptyDir` makes the disposable nature explicit.
+A StatefulSet + PVC is the right answer when you want the data to survive a
+pod restart — which, once these back a live deploy, you do. The previous
+`emptyDir` setup treated them as throwaway ("you'll replace these within a
+week"), but on Autopilot that guarantee is a data-loss bug: any pod
+reschedule wipes the database. Postgres and ClickHouse are therefore
+StatefulSets with `volumeClaimTemplates`; Redis stays `emptyDir` because it
+is a cache with no source-of-truth data to lose.
+
+These are still a stopgap. The real fix is a managed database (Cloud SQL /
+ClickHouse Cloud) with backups, a strong rotated password, and a
+NetworkPolicy — see below.
