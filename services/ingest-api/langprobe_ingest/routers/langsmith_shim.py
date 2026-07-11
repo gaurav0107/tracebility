@@ -49,6 +49,25 @@ def _coerce_kind(run_type: str | None) -> RunKind:
     return _KIND_MAP.get(run_type.lower(), "chain")
 
 
+# LangSmith has no dedicated session field: threads are grouped off a metadata
+# key. The SDK puts it in ``extra.metadata`` under one of these (in priority
+# order). Without reading them, correctly-tagged LangSmith runs never populate
+# run.session_id and stay invisible under /runs?view=threads.
+_LS_SESSION_META_KEYS = ("session_id", "thread_id", "conversation_id")
+
+
+def _resolve_session_id(body: dict[str, Any], metadata: dict[str, Any]) -> str | None:
+    # A literal top-level session_id wins if a caller sets one explicitly.
+    top = body.get("session_id")
+    if isinstance(top, str) and top:
+        return top
+    for key in _LS_SESSION_META_KEYS:
+        v = metadata.get(key)
+        if isinstance(v, str) and v:
+            return v
+    return None
+
+
 def _stringify(value: Any) -> str:
     if isinstance(value, str):
         return value
@@ -77,7 +96,7 @@ def _to_run_ingest(body: dict[str, Any], *, partial: bool = False) -> RunIngest:
         end_time=body.get("end_time"),
         inputs=None if inputs is None else _stringify(inputs),
         outputs=None if outputs is None else _stringify(outputs),
-        session_id=body.get("session_id"),
+        session_id=_resolve_session_id(body, metadata),
         tags=tags,
         metadata=metadata,
         error_message=err,
