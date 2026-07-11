@@ -115,6 +115,10 @@ _OUTPUT_KEYS: list[str] = list(_ATTRIBUTE_MAPPING["io"]["output"])
 # End-user identity (the human the agent serves), distinct from the operator.
 # Only stamped on the synthesized Run from the trace's root span attributes.
 _END_USER_ID_KEYS: list[str] = list(_ATTRIBUTE_MAPPING.get("end_user_id") or [])
+# Session / thread grouping key. OpenInference emits ``session.id``; OTel GenAI
+# uses ``gen_ai.conversation.id``. Without this the run's session_id stays NULL
+# and the trace never rolls up under /runs?view=threads.
+_SESSION_ID_KEYS: list[str] = list(_ATTRIBUTE_MAPPING.get("session_id") or [])
 
 _STATUS_OK = 1
 _STATUS_ERROR = 2
@@ -448,6 +452,16 @@ def _translate_spans(
         # human the agent serves. Read it from the root span's attributes
         # via the ordered fallback chain (enduser.id / user.id / ...).
         end_user_id = _first_str(root.attributes, _END_USER_ID_KEYS)
+        # Session/thread key groups multi-turn runs. Prefer the root span,
+        # but OpenInference stamps session.id on every span in the session
+        # while our synthesized root may be a bare chain span, so fall back
+        # to any span carrying it rather than lose the grouping.
+        session_id = _first_str(root.attributes, _SESSION_ID_KEYS)
+        if session_id is None:
+            for s in spans:
+                session_id = _first_str(s.attributes, _SESSION_ID_KEYS)
+                if session_id is not None:
+                    break
         # If the trace has an error span, the run is error; else ok.
         has_error = any(s.status == "error" for s in spans)
         # Token / cost totals aggregate the LLM spans for the run.
@@ -466,6 +480,7 @@ def _translate_spans(
                 end_time=bucket["max_end"],
                 inputs=root.inputs,
                 outputs=root.outputs,
+                session_id=session_id,
                 end_user_id=end_user_id,
                 prompt_tokens=prompt_tot or None,
                 completion_tokens=comp_tot or None,

@@ -61,5 +61,12 @@
     "enduser.id",
     "user.id",
     "session.user.id"
+  ],
+  "session_id": [
+    "session.id",
+    "gen_ai.conversation.id",
+    "conversation.id",
+    "thread.id",
+    "thread_id"
   ]
 }
