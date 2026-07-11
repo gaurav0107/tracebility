@@ -114,7 +114,7 @@ function PageInterior({ children }: { children: React.ReactNode }) {
 function BreadcrumbBar() {
   return (
     <div style={{ fontSize: 12, color: "var(--text-3)" }}>
-      <Link href="/threads" style={{ color: "var(--text-3)" }}>
+      <Link href="/runs?view=threads" style={{ color: "var(--text-3)" }}>
         ← all threads
       </Link>
     </div>
