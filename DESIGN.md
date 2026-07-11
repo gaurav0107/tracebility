@@ -142,7 +142,7 @@ App grid
 ```
 
 - **Topbar:** 48px tall, sticky, 1px `--border` bottom rule. White surface.
-- **Sidebar:** 232px wide, full-height, `--surface-2` background, 1px right rule.
+- **Sidebar:** 224px wide (`--sidebar-w`), full-height, `--surface-sidebar` background, 1px right rule. Collapsible to a 58px icon rail (`--sidebar-w-rail`) via the brand-row toggle; the choice persists in the `lp_sidebar` cookie so SSR matches the client. Collapsed rail shows 16px Lucide icons with `title` tooltips; section labels become hairline rules (`.nav-section-rule`).
 - **Trace shell (run-detail):** `360px 1fr 440px` — span-tree / timeline canvas / inspector. Each pane has its own scroll. 1px `--border` rules between, no shadow.
 - **Studio shell:** `1fr 380px` — graph pane / chat pane.
 - **Marketing:** 12-col grid at 1200px max, 24px gutters, single scroll first viewport.
@@ -171,6 +171,10 @@ App grid
 `.search-box` — topbar search. 32px tall, 1px `--border`, `--r-2`, `--surface-2` bg, leading icon, trailing `.kbd`. Focus = 1px `--border-focus` ring.
 
 `.crumbs` — breadcrumb row. 13px `--text-2`, ` / ` separator in `--text-4`, last segment `--text`.
+
+`.seg` / `.seg-item` — segmented view switcher (pill track `--surface-3`, active pill raised `--surface` + `--shadow-2`). Used for same-page view/tab switching: Tracing's Threads|Traces, Monitoring's Dashboards|Alerts. `.seg-count` is an optional mono count suffix (e.g. "2 firing" in `--danger`).
+
+`.rail-grid` / `.stat-rail` — content + 264px stats rail composition. The rail is a `.card` of `.stat-rail-row`s (sans 12px label left, mono 13px tabular value right, `--divider-row` rules); sticky beside the table, stacks under it below 1180px. Rail scope (window / row limit) is always printed in the card-sub — computed stats never imply more data than fetched.
 
 ## Motion
 - **Default duration:** 80-120ms for hover/focus, 180ms for state change. No motion >240ms except the replay scrubber.
@@ -210,3 +214,4 @@ App grid
 | 2026-05-27 | v2 — adopt Vercel/Geist mock as new source of truth. | User chose "mock wins, replace DESIGN.md." Geist + Geist Mono, near-black `#0A0A0A` accent, light-mode default, blue `#2056E2` links, full token set extracted from `/Users/mia/Downloads/langprobe.html`. Berkeley Mono / amber-orange retired. |
 | 2026-06-08 | v3 — accent → HeroUI blue `#0485F7`; brand and link unified. | After `/design-shotgun` exploration, user selected the Inline-edit grammar paired with HeroUI's exact primary blue (sourced from `heroui-inc/heroui` `packages/styles/themes/default/variables.css`, `oklch(0.6204 0.195 253.83)` → `#0485F7`). Near-black accent retired; brand and link collapsed to a single hue so the product reads as one voice. Kind palette repointed to a *categorical* set (llm `#B97306` amber / tool `#0E7FB8` cyan / retr `#1F8A56` green / chain `#7A4FD9` indigo) so trace badges don't compete with the new accent. Geist + Geist Mono, light-mode default, no gradients all preserved. |
 | 2026-06-29 | v4 — Plus Jakarta Sans; link split from accent; contrast hardened; mono discipline. | Implemented from the Claude Design canvas `Design System.dc.html` (imported via the design MCP). Sans face Geist → **Plus Jakarta Sans** (variable, `next/font/google`); Geist Mono retained for machine values only. **The mono rule tightened:** mono is reserved for values read character-by-character (ids, model names, durations, costs, config); all chrome (badges, labels, hints, nav, captions) and big KPI/display numbers moved to sans-with-`tabular-nums`. **Link split from accent** → deeper blue `#0A66C2` (reverses v3's unified hue) so "navigable" and "primary action" are visually separable. Contrast hardened for AA: `--text-3` `#8A8A86`→`#6C6C69`, `--success` `#1A7F4E`→`#157A45`, `--warn` `#B05F00`→`#9C5400`. Weights leaned to 600/700 to compensate for the lighter face; shadow scale aligned to card/raised/modal; badge radius 5px. Accent, danger, surfaces, borders, kind palette, light-mode default, no gradients all preserved. |
+| 2026-07-10 | v5 — IA consolidation: unified Tracing (Threads\|Traces + stats rail), Monitoring⊕Alerts tabs, compact collapsible icon nav. | User feedback against LangSmith reference: too many top-level pages, nav too heavy. Threads and Traces merged into one `/runs` surface behind a `.seg` switcher with a 264px stats rail (count, error rate, p50/p99, tokens, cost — scope always printed). Alerts merged into `/monitoring?tab=alerts` so metric→threshold is one click; Alerts tab badge shows firing count. Old routes redirect. Sidebar: 236→224px, rows 13px/6px-pad, Lucide 16px icons added (sanctioned by the Iconography section), collapsible to a 58px icon rail persisted in the `lp_sidebar` cookie. Nav regrouped Observe / Evaluate / Build / Settings (19→17 items over clearer sections). |

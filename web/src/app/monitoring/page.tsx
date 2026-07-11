@@ -1,20 +1,32 @@
+import Link from "next/link";
 import { Shell } from "@/components/Shell";
+import {
+  type AlertEventRow,
+  type AlertRuleRow,
+  NewAlertRuleButton,
+} from "@/components/AlertsClient";
 import {
   SavedViewsBar,
   type SavedViewRow,
 } from "@/components/SavedViewsClient";
 import { apiGet } from "@/lib/api";
 import { resolveActiveProject, type Project } from "@/lib/projects";
+import { AlertsPanel } from "./AlertsPanel";
 
 /**
- * Monitoring — time-series dashboards.
+ * Monitoring — one surface, two tabs (LangSmith-style).
  *
- * Server-renders four charts (latency p50/p95/p99, runs, error rate,
- * cost) over the active project's last N seconds, plus a model
- * breakdown table. Charts are inline SVG so the page is light and
- * matches DESIGN.md (no chart library, no client JS).
+ *   - Dashboards (default): four inline-SVG charts (latency
+ *     p50/p95/p99, runs, error rate, cost) over the last N seconds,
+ *     plus a model breakdown table. Window: 1h/6h/24h/7d via
+ *     querystring `window`.
+ *   - Alerts (?tab=alerts): rules + incident history over the same
+ *     ClickHouse rollups the charts read. Kept on this page so the
+ *     "metric looks bad → set a threshold on it" loop is one click,
+ *     not a navigation.
  *
- * Window selector: 1h / 6h / 24h / 7d via querystring `window`.
+ * Rules are fetched on both tabs — the Alerts tab label carries a
+ * firing count so an open incident is visible from the charts.
  */
 
 export const dynamic = "force-dynamic";
@@ -56,28 +68,86 @@ const WINDOWS: { label: string; seconds: number; bucket: number }[] = [
   { label: "7d", seconds: 7 * 24 * 3600, bucket: 60 * 60 },
 ];
 
+type MonitoringTab = "dashboards" | "alerts";
+
+interface AlertEventListWire {
+  events: AlertEventRow[];
+}
+
 export default async function MonitoringPage({
   searchParams,
 }: {
-  searchParams: { window?: string; model?: string; kind?: string };
+  searchParams: { window?: string; model?: string; kind?: string; tab?: string };
 }) {
   const { active, all, reason } = await resolveActiveProject();
+  const tab: MonitoringTab =
+    searchParams.tab === "alerts" ? "alerts" : "dashboards";
   const win =
     WINDOWS.find((w) => w.label === searchParams.window) ?? WINDOWS[0];
   const modelFilter = (searchParams.model || "").trim() || null;
+  const crumbs = (
+    <>
+      {active ? <span className="mono">{active.slug}</span> : null}
+      <span className="sep">/</span>
+      <span>monitoring</span>
+      <span className="sep">/</span>
+      <span className="last">{tab}</span>
+    </>
+  );
 
   if (!active) {
     return (
-      <Shell active={null} projects={all}>
+      <Shell active={null} projects={all} crumbs={crumbs}>
         <PageInterior>
-          <PageHeader title="Monitoring" subtitle="dashboards" />
+          <PageHeader title="Monitoring" subtitle="dashboards + alerts" />
           <UnconfiguredState reason={reason} />
         </PageInterior>
       </Shell>
     );
   }
 
-  const [tsRes, byModelRes, viewsRes] = await Promise.all([
+  // Rules power the Alerts tab and the firing badge on both tabs. Start
+  // the fetch unawaited so it overlaps each tab's own queries instead of
+  // adding a serial round-trip in front of them. Safe to float only
+  // because apiGet never rejects (it catches and returns {error}) — keep
+  // that invariant or add a .catch here.
+  const rulesPromise = apiGet<AlertRuleRow[]>(
+    `/v1/alerts?project_id=${encodeURIComponent(active.id)}`,
+  );
+
+  if (tab === "alerts") {
+    const [rulesRes, eventsRes] = await Promise.all([
+      rulesPromise,
+      apiGet<AlertEventListWire>(
+        `/v1/alerts/events?project_id=${encodeURIComponent(active.id)}&limit=200`,
+      ),
+    ]);
+    const rules = rulesRes.data ?? [];
+    const firing = rules.filter((r) => r.open_incident_id).length;
+    const events = eventsRes.data?.events ?? [];
+    return (
+      <Shell active={active} projects={all} crumbs={crumbs}>
+        <PageInterior>
+          <PageHeader
+            title="Monitoring"
+            subtitle={`${active.slug} · ${rules.length} ${rules.length === 1 ? "rule" : "rules"}`}
+            right={<NewAlertRuleButton projectId={active.id} />}
+          />
+          <TabBar tab={tab} firing={firing} rulesError={rulesRes.error} windowLabel={win.label} model={modelFilter} />
+          <AlertsPanel
+            rules={rules}
+            events={events}
+            rulesError={rulesRes.error}
+            eventsError={eventsRes.error}
+            project={active}
+          />
+        </PageInterior>
+      </Shell>
+    );
+  }
+
+  const [rulesRes, tsRes, byModelRes, viewsRes] = await Promise.all([
+    rulesPromise,
     apiGet<TimeseriesResponse>(
       `/v1/metrics/timeseries?project_id=${encodeURIComponent(active.id)}&window_seconds=${win.seconds}&bucket_seconds=${win.bucket}`,
     ),
@@ -88,6 +158,8 @@ export default async function MonitoringPage({
       `/v1/saved-views?project_id=${encodeURIComponent(active.id)}&surface=monitoring`,
     ),
   ]);
+  const rules = rulesRes.data ?? [];
+  const firing = rules.filter((r) => r.open_incident_id).length;
   const buckets = tsRes.data?.buckets ?? [];
   const allModels = byModelRes.data?.items ?? [];
   // Apply the optional model filter at the view layer; the breakdown
@@ -101,20 +173,24 @@ export default async function MonitoringPage({
   const totals = aggregate(buckets);
 
   return (
-    <Shell active={active} projects={all}>
+    <Shell active={active} projects={all} crumbs={crumbs}>
       <PageInterior>
         <PageHeader
           title="Monitoring"
           subtitle={`${active.slug} · last ${win.label}${modelFilter ? ` · ${modelFilter}` : ""}`}
-          right={<WindowPicker current={win.label} />}
+          right={<WindowPicker current={win.label} model={modelFilter} />}
         />
+        <TabBar tab={tab} firing={firing} rulesError={rulesRes.error} windowLabel={win.label} model={modelFilter} />
         <SavedViewsBar
           projectId={active.id}
           views={views}
           surface="monitoring"
           basePath="/monitoring"
         />
-        <KpiStrip totals={totals} />
+        <KpiStrip
+          totals={totals}
+          unavailable={Boolean(tsRes.error) && buckets.length === 0}
+        />
         <ChartGrid buckets={buckets} bucketSeconds={win.bucket} />
         <ModelTable models={models} reason={byModelRes.error} />
         {buckets.length === 0 ? (
@@ -125,15 +201,72 @@ export default async function MonitoringPage({
   );
 }
 
+function TabBar({
+  tab,
+  firing,
+  rulesError,
+  windowLabel,
+  model,
+}: {
+  tab: MonitoringTab;
+  firing: number;
+  rulesError: string | null;
+  windowLabel?: string;
+  model?: string | null;
+}) {
+  // Keep the dashboard context (window, model) across the tab round-trip —
+  // "metric looks bad → set a threshold → back to the chart" must not
+  // reset to the default window.
+  const params = new URLSearchParams();
+  if (windowLabel && windowLabel !== WINDOWS[0].label) {
+    params.set("window", windowLabel);
+  }
+  if (model) params.set("model", model);
+  const dashboardsQs = params.toString();
+  const alertsParams = new URLSearchParams(params);
+  alertsParams.set("tab", "alerts");
+  return (
+    <nav className="seg" aria-label="Monitoring tabs" style={{ alignSelf: "flex-start" }}>
+      <Link
+        href={dashboardsQs ? `/monitoring?${dashboardsQs}` : "/monitoring"}
+        className={`seg-item${tab === "dashboards" ? " active" : ""}`}
+        aria-current={tab === "dashboards" ? "page" : undefined}
+      >
+        Dashboards
+      </Link>
+      <Link
+        href={`/monitoring?${alertsParams.toString()}`}
+        className={`seg-item${tab === "alerts" ? " active" : ""}`}
+        aria-current={tab === "alerts" ? "page" : undefined}
+      >
+        Alerts
+        {firing > 0 ? (
+          <span
+            className="seg-count"
+            style={{ color: "var(--danger)", fontWeight: 700 }}
+          >
+            {firing} firing
+          </span>
+        ) : rulesError ? (
+          // Rules fetch failed — "no badge" must not read as "nothing firing".
+          <span className="seg-count" title={`alert rules unavailable (${rulesError})`}>
+            ?
+          </span>
+        ) : null}
+      </Link>
+    </nav>
+  );
+}
+
 function PageInterior({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        padding: 24,
+        padding: "28px 32px 32px",
         display: "flex",
         flexDirection: "column",
         gap: 20,
-        maxWidth: 1400,
+        maxWidth: 1600,
       }}
     >
       {children}
@@ -175,7 +308,13 @@ function PageHeader({
   );
 }
 
-function WindowPicker({ current }: { current: string }) {
+function WindowPicker({
+  current,
+  model,
+}: {
+  current: string;
+  model?: string | null;
+}) {
   return (
     <div
       style={{
@@ -186,9 +325,9 @@ function WindowPicker({ current }: { current: string }) {
       }}
     >
       {WINDOWS.map((w) => (
-        <a
+        <Link
           key={w.label}
-          href={`/monitoring?window=${w.label}`}
+          href={`/monitoring?window=${w.label}${model ? `&model=${encodeURIComponent(model)}` : ""}`}
           style={{
             padding: "6px 12px",
             fontSize: 12,
@@ -201,7 +340,7 @@ function WindowPicker({ current }: { current: string }) {
           }}
         >
           {w.label}
-        </a>
+        </Link>
       ))}
     </div>
   );
@@ -229,12 +368,38 @@ function aggregate(buckets: TimeseriesBucket[]) {
     errors,
     tokens,
     cost,
-    errorRate: runs > 0 ? errors / runs : 0,
+    errorRate: runs > 0 ? errors / runs : null,
     p95Avg: p95Count > 0 ? p95Sum / p95Count : null,
   };
 }
 
-function KpiStrip({ totals }: { totals: ReturnType<typeof aggregate> }) {
+function KpiStrip({
+  totals,
+  unavailable = false,
+}: {
+  totals: ReturnType<typeof aggregate>;
+  unavailable?: boolean;
+}) {
+  // A failed timeseries fetch must not read as "0 runs, 0 errors, healthy".
+  if (unavailable) {
+    return (
+      <section
+        className="card"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+          gap: 0,
+          overflow: "hidden",
+        }}
+      >
+        {["Runs", "Errors", "Error rate", "Avg p95", "Total cost"].map(
+          (label, i) => (
+            <KpiCell key={label} label={label} value="—" last={i === 4} />
+          ),
+        )}
+      </section>
+    );
+  }
   return (
     <section
       className="card"
@@ -253,8 +418,16 @@ function KpiStrip({ totals }: { totals: ReturnType<typeof aggregate> }) {
       />
       <KpiCell
         label="Error rate"
-        value={`${(totals.errorRate * 100).toFixed(2)}%`}
-        color={totals.errorRate > 0.01 ? "var(--danger)" : undefined}
+        value={
+          totals.errorRate === null
+            ? "—"
+            : `${(totals.errorRate * 100).toFixed(2)}%`
+        }
+        color={
+          totals.errorRate !== null && totals.errorRate > 0.01
+            ? "var(--danger)"
+            : undefined
+        }
       />
       <KpiCell
         label="Avg p95"
@@ -266,7 +439,7 @@ function KpiStrip({ totals }: { totals: ReturnType<typeof aggregate> }) {
               : `${(totals.p95Avg / 1000).toFixed(2)} s`
         }
       />
-      <KpiCell label="Total cost" value={fmtCost(totals.cost)} />
+      <KpiCell label="Total cost" value={fmtCost(totals.cost)} last />
     </section>
   );
 }
@@ -275,16 +448,18 @@ function KpiCell({
   label,
   value,
   color,
+  last = false,
 }: {
   label: string;
   value: string;
   color?: string;
+  last?: boolean;
 }) {
   return (
     <div
       style={{
         padding: "16px 20px",
-        borderRight: "1px solid var(--border)",
+        borderRight: last ? undefined : "1px solid var(--border)",
         display: "flex",
         flexDirection: "column",
         gap: 4,

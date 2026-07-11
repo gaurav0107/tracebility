@@ -106,7 +106,8 @@
 
   /* Layout chrome */
   --topbar-h: 58px;
-  --sidebar-w: 236px;
+  --sidebar-w: 224px;
+  --sidebar-w-rail: 58px;
   --tracepane-l: 360px;
   --tracepane-r: 440px;
   --studiopane-r: 380px;
@@ -474,6 +475,66 @@ a:focus-visible { outline: 1px solid var(--border-focus); outline-offset: 2px; }
 .table tbody tr:hover { background: var(--row-hover); }
 .table .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; color: var(--text-2); }
 
+/* ---------- Segmented view switcher — pill track + raised active pill ---------- */
+.seg {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  gap: 2px;
+  background: var(--surface-3);
+  border-radius: var(--r-pill);
+}
+.seg-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 14px;
+  border-radius: var(--r-pill);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-3);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+.seg-item:hover { color: var(--text); text-decoration: none; }
+.seg-item.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-2); }
+.seg-item:focus-visible { outline: 1px solid var(--border-focus); outline-offset: 1px; }
+.seg-count { font-family: var(--f-mono); font-size: 10.5px; font-variant-numeric: tabular-nums; color: var(--text-3); }
+.seg-item.active .seg-count { color: var(--text-3); }
+
+/* ---------- Content + stats rail (tracing, monitoring) ---------- */
+.rail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 264px;
+  gap: 16px;
+  align-items: start;
+}
+.stat-rail { position: sticky; top: 16px; }
+.stat-rail-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 20px;
+  border-bottom: 1px solid var(--divider-row);
+}
+.stat-rail-row:last-child { border-bottom: 0; padding-bottom: 16px; }
+.stat-rail-label { font-size: 12px; font-weight: 600; color: var(--text-3); }
+.stat-rail-value {
+  font-family: var(--f-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums slashed-zero;
+  color: var(--text);
+  white-space: nowrap;
+}
+@media (max-width: 1180px) {
+  .rail-grid { grid-template-columns: minmax(0, 1fr); }
+  .stat-rail { position: static; }
+}
+
 /* Crumbs (breadcrumb) */
 .crumbs {
   display: flex;
@@ -513,31 +574,60 @@ a:focus-visible { outline: 1px solid var(--border-focus); outline-offset: 2px; }
 .search-box input::placeholder { color: var(--text-4); }
 .search-box:focus-within { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--accent-ring); }
 
-/* Sidebar nav — text pills */
+/* Sidebar nav — compact icon + label pills */
 .nav-section-label {
-  padding: 16px 14px 7px;
+  padding: 14px 12px 6px;
   font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.09em;
   color: var(--text-4);
 }
-.nav-item {
-  position: relative;
-  display: flex;
+/* Sidebar collapse toggle — quiet icon button in the brand row */
+.sidebar-toggle {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 14px;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
   border-radius: var(--r-pill);
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text-2);
-  text-decoration: none;
+  background: transparent;
+  color: var(--text-3);
   cursor: pointer;
+  flex-shrink: 0;
   transition:
     background var(--motion-fast) var(--ease-out),
     color var(--motion-fast) var(--ease-out);
 }
+.sidebar-toggle:hover { background: var(--surface-3); color: var(--text-2); }
+.sidebar-toggle:focus-visible { outline: 1px solid var(--border-focus); outline-offset: 1px; }
+
+/* Collapsed rail: section labels become hairline dividers */
+.nav-section-rule {
+  height: 1px;
+  margin: 10px 10px 9px;
+  background: var(--border-soft);
+}
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+.nav-item.nav-item-collapsed { justify-content: center; padding: 8px 0; }
 .nav-item:hover { background: var(--surface-3); color: var(--text); text-decoration: none; }
 .nav-item.active {
   background: var(--accent-fill-nav);
