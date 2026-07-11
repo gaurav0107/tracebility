@@ -29,9 +29,21 @@ The mock at `file:///Users/mia/Downloads/langprobe.html` uses a blue accent
 ```
 src/
   app/
-    layout.tsx       — root layout, boots dark theme
-    page.tsx         — overview dashboard (stub data)
+    layout.tsx       — root layout
+    page.tsx         — overview dashboard
     globals.css      — design tokens + reset
+    runs/            — unified Tracing surface (Threads | Traces switcher + stats rail)
+    monitoring/      — Dashboards | Alerts tabs (alert rules live beside their charts)
   components/
-    Shell.tsx        — three-pane debugger shell (nav | main | inspector)
+    Shell.tsx        — app chrome: sidebar column + main column (topbar + scroll);
+                       reads the `lp_sidebar` cookie server-side so SSR matches client
+    SidebarShell.tsx — client sidebar: brand row + collapse toggle, project switcher,
+                       icon nav; collapses to a 58px icon rail
+    SidebarNav.tsx   — nav items grouped Observe / Evaluate / Build / Settings
+  lib/
+    sidebar.ts       — `lp_sidebar` cookie contract shared by server read + client write
 ```
+
+Route notes: `/threads` and `/alerts` are redirect stubs — they 307 to
+`/runs?view=threads` and `/monitoring?tab=alerts` so old links and bookmarks
+keep working (`/threads/[session_id]` remains the per-session drill-down).
