@@ -560,8 +560,8 @@ async def test_run_backtest_luna_proposed_draft_scores_for_real(mocker):
         # Deterministic stand-in scoring: flag runs whose output text
         # contains "failure".
         if "failure" in kwargs["output_text"]:
-            return 0.0, "fail", "flagged: contains failure", "raw-fail"
-        return 1.0, "pass", "not flagged", "raw-pass"
+            return 0.0, "fail", "flagged: contains failure", "raw-fail", 0.0
+        return 1.0, "pass", "not flagged", "raw-pass", 0.0
 
     mock_apply = mocker.patch(
         "langprobe_api.verbs.backtest.luna_judges.apply_luna_judge",

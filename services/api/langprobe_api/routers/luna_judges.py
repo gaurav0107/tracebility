@@ -367,10 +367,10 @@ async def apply_luna_judge(
     input_text: str,
     expected: str,
     output_text: str | None = None,
-) -> tuple[float, str, str, str]:
+) -> tuple[float, str, str, str, float]:
     """Run the prompted judge once via the LiteLLM gateway.
 
-    Returns ``(score, label, rationale, raw_output)``.
+    Returns ``(score, label, rationale, raw_output, cost_usd)``.
 
     The runner never raises on a provider failure — it returns
     ``(0.0, 'error', '<reason>', '<details>')`` so the eval_score
@@ -394,7 +394,7 @@ async def apply_luna_judge(
             raw,
             judge_row.get("output_format") or "score-rationale",
         )
-        return score, label, rationale, raw[:2000]
+        return score, label, rationale, raw[:2000], 0.0
 
     bare_model = model
     if not bare_model.startswith(provider + "/"):
@@ -420,14 +420,14 @@ async def apply_luna_judge(
             code=exc.code,
             detail=exc.detail,
         )
-        return 0.0, "error", f"dispatch failed: [{exc.code}] {exc.detail}", exc.detail[:1000]
+        return 0.0, "error", f"dispatch failed: [{exc.code}] {exc.detail}", exc.detail[:1000], 0.0
 
     raw = result.text
     score, label, rationale = _parse_response(
         raw,
         judge_row.get("output_format") or "score-rationale",
     )
-    return score, label, rationale, raw[:2000]
+    return score, label, rationale, raw[:2000], float(result.cost_usd or 0.0)
 
 
 # ---------------------------------------------------------------------------

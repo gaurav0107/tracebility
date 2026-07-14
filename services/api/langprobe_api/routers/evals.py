@@ -326,7 +326,7 @@ async def _run_eval(pool: asyncpg.Pool, ch: ClickHouseQuery, run_id: UUID) -> No
         judged_at = datetime.utcnow()
         for item in items:
             if luna_row is not None:
-                score, label, rationale, raw_output = await luna_judges.apply_luna_judge(
+                score, label, rationale, raw_output, _cost = await luna_judges.apply_luna_judge(
                     luna_row,
                     pool=pool,
                     project_id=run["project_id"],

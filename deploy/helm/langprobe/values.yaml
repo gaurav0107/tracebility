@@ -89,6 +89,26 @@ ingestWorker:
   tolerations: []
   affinity: {}
 
+scheduler:
+  enabled: true
+  # Single replica: advisory locks make >1 safe, but the reaper's load is
+  # trivial and Recreate rollout avoids needing 2x capacity.
+  replicaCount: 1
+  image:
+    repository: langprobe-scheduler
+    tag: ""
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
 web:
   enabled: true
   replicaCount: 2

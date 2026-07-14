@@ -27,6 +27,55 @@ jobs:
       - name: ruff format check
         run: uvx ruff format --check .
 
+  pytest:
+    name: pytest
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pg
+          POSTGRES_PASSWORD: pg
+          POSTGRES_DB: langprobe
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pg"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      # Integration tests are DSN-gated: this is what un-skips them. No
+      # ClickHouse — the correctness suites (advisory locks, tenant columns,
+      # exactly-once scoring, alert-evaluator lock) fake ClickHouse and only
+      # need a real Postgres.
+      LANGPROBE_TEST_DSN: postgresql://pg:pg@localhost:5432/langprobe
+      PGPASSWORD: pg
+    steps:
+      - uses: actions/checkout@v4
+      - name: install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+      - name: install python
+        run: uv python install 3.11
+      - name: apply postgres migrations
+        # No migration-runner in-repo yet; apply the ordered SQL directly,
+        # same as the local test workflow. ON_ERROR_STOP so a bad migration
+        # fails the job instead of silently continuing.
+        run: |
+          for f in $(ls schemas/postgres/migrations/*.sql | sort); do
+            echo "applying $f"
+            psql -h localhost -U pg -d langprobe -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+      - name: pytest — scheduler + api
+        # --extra dev pulls in the test tooling (pytest, pytest-asyncio,
+        # pytest-mock); it lives in [project.optional-dependencies].dev, which
+        # `uv run` does not install by default.
+        run: |
+          uv run --project services/scheduler --extra dev pytest services/scheduler/tests -q
+          uv run --project services/api --extra dev pytest services/api/tests -q
+
   typescript:
     name: typescript
     runs-on: ubuntu-latest

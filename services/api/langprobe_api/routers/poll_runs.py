@@ -374,7 +374,7 @@ async def _run_poll(
             for judge in judges:
                 if judge in luna_rows:
                     luna_row = luna_rows[judge]
-                    score, label, rationale, raw_output = await luna_judges.apply_luna_judge(
+                    score, label, rationale, raw_output, _cost = await luna_judges.apply_luna_judge(
                         luna_row,
                         pool=pool,
                         project_id=poll["project_id"],

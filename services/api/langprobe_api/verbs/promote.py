@@ -48,6 +48,11 @@ from langprobe_api.verbs.scope import ScopeError, require_project_scope
 # scoring behavior isn't a surprise relative to what backtested it.
 PROMOTED_JUDGE_MODEL = "claude-3-5-haiku-latest"
 
+# Default watch rule stamped on promotion. luna scores are higher-is-better,
+# so we fire when the judge's windowed average quality drops below this.
+_WATCH_THRESHOLD = 0.5
+_WATCH_COMPARATOR = "<"
+
 
 class ApprovalRequiredError(Exception):
     """Raised when ``approval_token`` is empty/blank. No judge is
@@ -100,64 +105,94 @@ async def promote_to_recurring(deps: VerbDeps, ctx: TenantContext, params: Promo
     slug = _slug_for_config(judge_config)
     prompt = judge_config.get("prompt", "")
 
-    judge_id = await _insert_or_get_judge(
-        deps.pool,
-        project_id=draft["project_id"],
-        slug=slug,
-        prompt=prompt,
-        draft_id=draft["id"],
-        created_by=ctx.api_key_id,
-    )
+    # One transaction so "register a recurring judge AND watch it" is atomic:
+    # a failure provisioning the watch rule (or marking the draft promoted) must
+    # not leave a recurring judge that nothing watches. The judge insert runs in
+    # a savepoint (nested transaction) so its idempotent unique-violation
+    # recovery doesn't poison the outer transaction.
+    async with deps.pool.acquire() as conn, conn.transaction():
+        judge_id = await _insert_or_get_judge(
+            conn,
+            project_id=draft["project_id"],
+            slug=slug,
+            prompt=prompt,
+            draft_id=draft["id"],
+            created_by=ctx.api_key_id,
+            schedule_seconds=params.schedule_seconds,
+        )
 
-    await deps.pool.execute(
-        """
-        update backtest_draft
-        set status = $2
-        where id = $1
-        """,
-        draft["id"],
-        DraftStatus.PROMOTED.value,
-    )
+        await _provision_watch_rule(
+            conn,
+            project_id=draft["project_id"],
+            judge_id=judge_id,
+            slug=slug,
+            schedule_seconds=params.schedule_seconds,
+            created_by=ctx.api_key_id,
+        )
+
+        await conn.execute(
+            """
+            update backtest_draft
+            set status = $2
+            where id = $1
+            """,
+            draft["id"],
+            DraftStatus.PROMOTED.value,
+        )
 
     return PromoteOut(judge_id=judge_id)
 
 
 async def _insert_or_get_judge(
-    pool: Any,
+    conn: Any,
     *,
     project_id: UUID,
     slug: str,
     prompt: str,
     draft_id: UUID,
     created_by: UUID | None,
+    schedule_seconds: int,
 ) -> UUID:
     """Insert a new ``luna_judge`` for (project_id, slug); on a unique
     violation (a prior promotion already created it), fetch and return
-    that existing judge's id instead. Idempotent by construction."""
+    that existing judge's id instead. Idempotent by construction.
+
+    Runs on the caller's ``conn`` inside its transaction; the insert is
+    wrapped in a savepoint (nested ``conn.transaction()``) so a unique
+    violation rolls back only the failed insert, not the outer transaction,
+    leaving it usable for the recovery SELECT and the rest of the promote.
+
+    Promotion is what makes a judge *recurring*: it stamps
+    ``is_recurring``, the cadence, and ``scored_through = now()`` so the
+    scheduler scores forward from promotion (the backtest already covered
+    history — see 0031_recurring_judges)."""
     try:
-        row = await pool.fetchrow(
-            """
-            insert into luna_judge (
-                project_id, slug, name, description, rubric_prompt,
-                output_format, provider, model, created_by
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                insert into luna_judge (
+                    project_id, slug, name, description, rubric_prompt,
+                    output_format, provider, model, created_by,
+                    is_recurring, schedule_seconds, recurring_enabled, scored_through
+                )
+                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, true, now())
+                returning id
+                """,
+                project_id,
+                slug,
+                f"Proposed judge {slug}",
+                f"promoted from draft {draft_id}",
+                prompt,
+                "score-rationale",
+                "anthropic",
+                PROMOTED_JUDGE_MODEL,
+                created_by,
+                schedule_seconds,
             )
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            returning id
-            """,
-            project_id,
-            slug,
-            f"Proposed judge {slug}",
-            f"promoted from draft {draft_id}",
-            prompt,
-            "score-rationale",
-            "anthropic",
-            PROMOTED_JUDGE_MODEL,
-            created_by,
-        )
         assert row is not None
         return row["id"]
     except asyncpg.UniqueViolationError:
-        existing = await pool.fetchrow(
+        existing = await conn.fetchrow(
             """
             select id from luna_judge
             where project_id = $1 and slug = $2
@@ -167,3 +202,42 @@ async def _insert_or_get_judge(
         )
         assert existing is not None
         return existing["id"]
+
+
+async def _provision_watch_rule(
+    conn: Any,
+    *,
+    project_id: UUID,
+    judge_id: UUID,
+    slug: str,
+    schedule_seconds: int,
+    created_by: UUID | None,
+) -> None:
+    """Create the default judge_score_avg alert rule that watches this
+    recurring judge. Idempotent via alert_rule_judge_watch_uniq, so a
+    promote retry never creates a second rule. The alert window is aligned
+    to the scoring cadence, clamped to the column's 60..86400 bound."""
+    # The alert window must comfortably exceed the scoring cadence (and the
+    # scheduler's ~300s tick granularity): each scoring batch lands at a single
+    # judged_at, so a window <= cadence empties between batches, the avg query
+    # returns no rows, and the incident falsely resolves then re-fires (flaps).
+    # 3x cadence, floored at 900s, keeps ~3 recent batches in-window for an
+    # actively-scored judge; a genuine traffic stop still empties it and resolves.
+    window_seconds = max(900, min(schedule_seconds * 3, 86400))
+    await conn.execute(
+        """
+        insert into alert_rule (
+            project_id, name, metric, comparator, threshold,
+            window_seconds, subject_id, enabled, created_by
+        )
+        values ($1, $2, 'judge_score_avg', $3, $4, $5, $6, true, $7)
+        on conflict (subject_id, metric) where subject_id is not null do nothing
+        """,
+        project_id,
+        f"Judge {slug} quality watch",
+        _WATCH_COMPARATOR,
+        _WATCH_THRESHOLD,
+        window_seconds,
+        judge_id,
+        created_by,
+    )

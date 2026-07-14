@@ -353,7 +353,7 @@ async def _score_run(
                 "max_tokens": 512,
                 "slug": "proposed",
             }
-            score, label, rationale, raw_output = await luna_judges.apply_luna_judge(
+            score, label, rationale, raw_output, _cost = await luna_judges.apply_luna_judge(
                 judge_row,
                 pool=deps.pool,
                 project_id=project_id,

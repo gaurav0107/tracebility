@@ -78,6 +78,11 @@ class BacktestOut(BaseModel):
 class PromoteIn(BaseModel):
     draft_id: UUID
     approval_token: str
+    # Cadence the promoted judge recurs at (scheduler re-scores it this
+    # often). Bounded to the same 60..86400 the DB check enforces; default
+    # hourly. A freshly promoted judge scores forward from now(), so this
+    # only governs new traffic, never a backfill.
+    schedule_seconds: int = Field(default=3600, ge=60, le=86400)
 
 
 class PromoteOut(BaseModel):
@@ -121,9 +126,14 @@ class PromoteRequest(BaseModel):
     project_id: UUID
     draft_id: UUID
     approval_token: str
+    schedule_seconds: int = Field(default=3600, ge=60, le=86400)
 
     def to_verb_params(self) -> PromoteIn:
-        return PromoteIn(draft_id=self.draft_id, approval_token=self.approval_token)
+        return PromoteIn(
+            draft_id=self.draft_id,
+            approval_token=self.approval_token,
+            schedule_seconds=self.schedule_seconds,
+        )
 
 
 class WatchRequest(BaseModel):

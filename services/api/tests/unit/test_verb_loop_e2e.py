@@ -37,9 +37,11 @@ against the same "backing store".
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import asyncpg
 import pytest
 from langprobe_api.verbs.deps import VerbDeps
 from langprobe_api.verbs.lifecycle import BacktestStatus, DraftStatus
@@ -82,6 +84,19 @@ def _make_ctx(project_id) -> TenantContext:
     )
 
 
+class _FakeCM:
+    """Minimal async context manager for the fake pool's acquire()/transaction()."""
+
+    def __init__(self, value):
+        self._value = value
+
+    async def __aenter__(self):
+        return self._value
+
+    async def __aexit__(self, *exc):
+        return False
+
+
 class _FakePool:
     """A tiny in-memory stand-in for asyncpg.Pool that backs exactly
     the two tables the loop touches: ``backtest_draft`` and
@@ -97,6 +112,19 @@ class _FakePool:
         self.runs: dict = {}
         self.judges: dict = {}
         self._judge_by_slug: dict[tuple, object] = {}
+        self.alert_rules: dict = {}
+        self._alert_rule_by_subject_metric: dict[tuple, object] = {}
+
+    def acquire(self):
+        # promote_to_recurring now runs its writes in one transaction:
+        # ``async with pool.acquire() as conn, conn.transaction():``. The fake
+        # is its own "connection" (it already exposes fetchrow/execute), so
+        # acquire just hands back self.
+        return _FakeCM(self)
+
+    def transaction(self):
+        # No-op transaction/savepoint context for the in-memory fake.
+        return _FakeCM(None)
 
     async def fetchrow(self, query: str, *args):
         q = query.strip()
@@ -193,9 +221,21 @@ class _FakePool:
             }
 
         if "insert into luna_judge" in q:
-            (project_id, slug, name, description, prompt, output_format, provider, model, _cb) = (
-                args
-            )
+            # promote stamps the recurring cadence: ... model, created_by,
+            # schedule_seconds (is_recurring/recurring_enabled/scored_through
+            # are SQL literals, not bound args).
+            (
+                project_id,
+                slug,
+                name,
+                description,
+                prompt,
+                output_format,
+                provider,
+                model,
+                _cb,
+                schedule_seconds,
+            ) = args
             key = (project_id, slug)
             if key in self._judge_by_slug:
                 import asyncpg
@@ -203,7 +243,13 @@ class _FakePool:
                 raise asyncpg.UniqueViolationError("duplicate key")
             judge_id = uuid4()
             self._judge_by_slug[key] = judge_id
-            self.judges[judge_id] = {"project_id": project_id, "slug": slug, "prompt": prompt}
+            self.judges[judge_id] = {
+                "project_id": project_id,
+                "slug": slug,
+                "prompt": prompt,
+                "schedule_seconds": schedule_seconds,
+                "is_recurring": True,
+            }
             return {"id": judge_id}
 
         if "select id from luna_judge" in q:
@@ -257,6 +303,33 @@ class _FakePool:
             run = self.runs[run_id]
             run.update(status="failed", error=error)
             return "UPDATE 1"
+        if "insert into alert_rule" in q:
+            (
+                project_id,
+                name,
+                comparator,
+                threshold,
+                window_seconds,
+                subject_id,
+                created_by,
+            ) = args
+            key = (subject_id, "judge_score_avg")
+            if key in self._alert_rule_by_subject_metric:
+                return "INSERT 0 0"  # on conflict ... do nothing
+            rule_id = uuid4()
+            self._alert_rule_by_subject_metric[key] = rule_id
+            self.alert_rules[rule_id] = {
+                "project_id": project_id,
+                "name": name,
+                "metric": "judge_score_avg",
+                "comparator": comparator,
+                "threshold": threshold,
+                "window_seconds": window_seconds,
+                "subject_id": subject_id,
+                "enabled": True,
+                "created_by": created_by,
+            }
+            return "INSERT 0 1"
         raise AssertionError(f"unexpected execute query: {q!r}")
 
 
@@ -616,3 +689,122 @@ async def test_loop_rejects_cross_project_context_at_every_verb(mocker, loop_env
     assert promote_out.judge_id is not None
     watch_out = await watch_judge(deps, real_ctx, WatchIn(target_id=backtest_out.backtest_run_id))
     assert watch_out.status == "done"
+
+
+# --------------------------------------------------------------------------
+# DB-backed: promote_to_recurring auto-provisions the judge_score_avg watch
+# rule against a real Postgres (Task 5). Guarded by LANGPROBE_TEST_DSN so it
+# skips cleanly when no integration DB is configured.
+# --------------------------------------------------------------------------
+
+
+def _dsn() -> str:
+    dsn = os.environ.get("LANGPROBE_TEST_DSN")
+    if not dsn:
+        pytest.skip("set LANGPROBE_TEST_DSN to run integration tests")
+    return dsn
+
+
+async def _insert_project(pool: asyncpg.Pool) -> object:
+    """Seed the org -> workspace -> project FK chain backtest_draft/
+    luna_judge/alert_rule all require."""
+    suffix = uuid4().hex[:12]
+    org_id = await pool.fetchval(
+        "insert into org (slug, name) values ($1, $2) returning id",
+        f"org-{suffix}",
+        "test org",
+    )
+    workspace_id = await pool.fetchval(
+        "insert into workspace (org_id, slug, name) values ($1, $2, $3) returning id",
+        org_id,
+        f"ws-{suffix}",
+        "test workspace",
+    )
+    project_id = await pool.fetchval(
+        "insert into project (workspace_id, slug, name) values ($1, $2, $3) returning id",
+        workspace_id,
+        f"proj-{suffix}",
+        "test project",
+    )
+    return org_id, project_id
+
+
+async def _insert_app_user(pool: asyncpg.Pool) -> object:
+    """Seed a real app_user so luna_judge.created_by / alert_rule.created_by
+    FKs are satisfiable (both reference app_user, not the abstract
+    api-key concept `TenantContext.api_key_id` stands in for elsewhere)."""
+    suffix = uuid4().hex[:12]
+    return await pool.fetchval(
+        "insert into app_user (email, password_hash) values ($1, $2) returning id",
+        f"user-{suffix}@example.com",
+        "x" * 40,
+    )
+
+
+async def _insert_ready_draft(pool: asyncpg.Pool, *, org_id, project_id) -> object:
+    """A backtest_draft already in `ready` status — the only status
+    promote_to_recurring accepts."""
+    return await pool.fetchval(
+        """
+        insert into backtest_draft (
+            project_id, org_id, cluster_ref, judge_kind, judge_config, status
+        )
+        values ($1, $2, '{}'::jsonb, 'luna:proposed', $3, 'ready')
+        returning id
+        """,
+        project_id,
+        org_id,
+        {"prompt": "flag hallucinations", "threshold": 0.5, "label": "fail"},
+    )
+
+
+async def _init_jsonb_codec(con: asyncpg.Connection) -> None:
+    """promote_to_recurring reads `backtest_draft.judge_config` (jsonb)
+    back out as a dict (`judge_config.get("prompt", "")`); asyncpg has no
+    default jsonb codec, so an ad hoc pool must register one — mirroring
+    what the app's own connection setup is expected to provide."""
+    await con.set_type_codec("jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
+
+
+async def test_promote_provisions_watch_rule_idempotently_against_real_db() -> None:
+    pool = await asyncpg.create_pool(_dsn(), min_size=2, max_size=4, init=_init_jsonb_codec)
+    try:
+        org_id, project_id = await _insert_project(pool)
+        user_id = await _insert_app_user(pool)
+        draft_id = await _insert_ready_draft(pool, org_id=org_id, project_id=project_id)
+        deps = VerbDeps(pool=pool, ch=None)
+        ctx = TenantContext(
+            org_id=org_id,
+            workspace_id=uuid4(),
+            project_id=project_id,
+            api_key_id=user_id,
+            plan="pro",
+            scopes=frozenset({"verbs:*"}),
+        )
+        same_params = PromoteIn(
+            draft_id=draft_id, approval_token="approved-by-alice", schedule_seconds=1800
+        )
+
+        promote_out = await promote_to_recurring(deps, ctx, same_params)
+        judge_id = promote_out.judge_id
+
+        rules = await pool.fetch(
+            "select metric, comparator, threshold, subject_id, window_seconds "
+            "from alert_rule where subject_id = $1",
+            judge_id,
+        )
+        assert len(rules) == 1
+        assert rules[0]["metric"] == "judge_score_avg"
+        assert rules[0]["comparator"] == "<"
+        assert float(rules[0]["threshold"]) == 0.5
+        assert rules[0]["window_seconds"] == 5400  # 3x the 1800s cadence
+
+        # backtest_draft only accepts a promote when its status is `ready`,
+        # so flip it back to re-exercise a retried promote of the same
+        # draft/config -> still exactly one alert_rule for that subject.
+        await pool.execute("update backtest_draft set status = 'ready' where id = $1", draft_id)
+        await promote_to_recurring(deps, ctx, same_params)
+        rules2 = await pool.fetch("select id from alert_rule where subject_id = $1", judge_id)
+        assert len(rules2) == 1
+    finally:
+        await pool.close()
