@@ -196,11 +196,11 @@ async def create_session(
     session_row = await pool.fetchrow(
         """
         insert into playground_session (
-            project_id, prompt_version_id, raw_template, rendered_prompt,
-            rendered_messages, variables, provider, model, temperature,
-            max_tokens, status, created_by
+            project_id, prompt_version_id, raw_template, raw_messages,
+            rendered_prompt, rendered_messages, variables, provider, model,
+            temperature, max_tokens, status, created_by
         )
-        values ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10, 'running', $11)
+        values ($1, $2, $3, $4::jsonb, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, 'running', $12)
         returning id, project_id, prompt_version_id, raw_template,
                   rendered_prompt, variables, provider, model, temperature,
                   max_tokens, status, output_text, prompt_tokens,
@@ -214,6 +214,7 @@ async def create_session(
         # paths leave it null so the trace UI doesn't show a misleading
         # legacy snippet.
         None if (version_row is not None or body.raw_messages is not None) else body.raw_template,
+        _json.dumps([m.model_dump() for m in body.raw_messages]) if body.raw_messages else None,
         rendered_prompt,
         _json.dumps([m.model_dump() for m in rendered_messages]),
         _json.dumps(body.variables),
