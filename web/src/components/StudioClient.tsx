@@ -415,14 +415,23 @@ export function PromoteBranchButton({
 // Edits editor (detail page)
 // ---------------------------------------------------------------------------
 
+export interface SpanOption {
+  span_id: string;
+  name: string;
+  kind: string;
+  model: string | null;
+}
+
 export function StudioEditsEditor({
   branchId,
   initialEdits,
   frozen,
+  spanOptions = [],
 }: {
   branchId: string;
   initialEdits: StudioEdit[];
   frozen: boolean;
+  spanOptions?: SpanOption[];
 }) {
   const router = useRouter();
   const [edits, setEdits] = useState<StudioEdit[]>(initialEdits);
@@ -565,15 +574,34 @@ export function StudioEditsEditor({
               alignItems: "start",
             }}
           >
-            <Field label="Target span id">
-              <input
-                value={edit.target_span_id}
-                disabled={frozen}
-                onChange={(e) =>
-                  updateEdit(idx, { target_span_id: e.target.value })
-                }
-                placeholder="span_id"
-              />
+            <Field label="Target span">
+              {spanOptions.length > 0 ? (
+                <select
+                  value={edit.target_span_id}
+                  disabled={frozen}
+                  onChange={(e) =>
+                    updateEdit(idx, { target_span_id: e.target.value })
+                  }
+                >
+                  <option value="">— pick a span —</option>
+                  {spanOptions.map((sp) => (
+                    <option key={sp.span_id} value={sp.span_id}>
+                      {sp.kind} · {sp.name}
+                      {sp.model ? ` · ${sp.model}` : ""} ·{" "}
+                      {sp.span_id.slice(0, 8)}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={edit.target_span_id}
+                  disabled={frozen}
+                  onChange={(e) =>
+                    updateEdit(idx, { target_span_id: e.target.value })
+                  }
+                  placeholder="span_id"
+                />
+              )}
             </Field>
             <Field label="Field" hint={fieldMeta?.hint}>
               <select

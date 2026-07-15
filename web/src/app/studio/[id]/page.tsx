@@ -5,6 +5,7 @@ import {
   DeleteBranchButton,
   PromoteBranchButton,
   ReplayBranchButton,
+  type SpanOption,
   StudioEditsEditor,
   type StudioBranchRow,
 } from "@/components/StudioClient";
@@ -55,6 +56,21 @@ export default async function StudioBranchPage({
     notFound();
   }
 
+  // Source-run spans feed the edit rows' span picker so operators
+  // never hand-paste span ids. Best-effort: an empty list falls back
+  // to the raw input.
+  const spansRes = await apiGet<{
+    items: { span_id: string; name: string; kind: string; model?: string | null }[];
+  }>(
+    `/v1/runs/${encodeURIComponent(branch.source_run_id)}/spans?project_id=${encodeURIComponent(branch.project_id)}`,
+  );
+  const spanOptions = (spansRes.data?.items ?? []).map((sp) => ({
+    span_id: sp.span_id,
+    name: sp.name,
+    kind: sp.kind,
+    model: sp.model ?? null,
+  }));
+
   // RBAC fail-closed server-side, but if the active project doesn't
   // match the branch we still want to render a clear message — not
   // pretend it's local.
@@ -98,6 +114,7 @@ export default async function StudioBranchPage({
         <EditsCard
           branchId={branch.id}
           edits={branch.edits}
+          spanOptions={spanOptions}
           frozen={!(branch.status === "draft" || branch.status === "failed") || crossProject}
         />
       </div>
@@ -363,10 +380,12 @@ function EditsCard({
   branchId,
   edits,
   frozen,
+  spanOptions,
 }: {
   branchId: string;
   edits: StudioBranchRow["edits"];
   frozen: boolean;
+  spanOptions: SpanOption[];
 }) {
   return (
     <section className="card card-pad-lg">
@@ -391,6 +410,7 @@ function EditsCard({
         branchId={branchId}
         initialEdits={edits}
         frozen={frozen}
+        spanOptions={spanOptions}
       />
     </section>
   );
