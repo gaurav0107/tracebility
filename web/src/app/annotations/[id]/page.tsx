@@ -369,6 +369,30 @@ function SettingBlock({
 }
 
 function CompleteCard({ total, done }: { total: number; done: number }) {
+  if (total === 0) {
+    return (
+      <section
+        className="card card-pad-lg"
+        style={{ borderColor: "var(--warn, #9C5400)" }}
+      >
+        <h2 style={{ marginBottom: 6, color: "var(--warn, #9C5400)" }}>
+          No items sampled
+        </h2>
+        <p
+          style={{
+            color: "var(--text-2)",
+            margin: 0,
+            fontSize: 13,
+            lineHeight: 1.55,
+          }}
+        >
+          The sampler found zero runs matching this queue&apos;s window and
+          status filter. Widen the window or relax the status filter when
+          you create the next queue — sampling happens once, at creation.
+        </p>
+      </section>
+    );
+  }
   return (
     <section
       className="card card-pad-lg"

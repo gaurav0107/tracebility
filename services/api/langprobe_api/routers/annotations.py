@@ -540,7 +540,7 @@ async def _sample_runs(
     elif sampling.status == "error":
         where_status = "and status = 'error'"
     sql = f"""
-        select toString(id) as id
+        select toString(run_id) as id
           from run final
          where project_id = {{project_id:UUID}}
            and start_time >= now64(9) - toIntervalSecond({{window:UInt32}})
