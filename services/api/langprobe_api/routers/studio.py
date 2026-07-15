@@ -594,9 +594,16 @@ async def _execute_replay(
 
     org_id, _ = await resolve_tenant_ids(pool, project_id)
 
-    # 1) Resolve the source span we're replacing. If source_span_id
-    #    is unset, pick the run root (parent_span_id is null).
-    source_data = await _resolve_source_span(ch, project_id, source_run_id, source_span_id)
+    # 1) Resolve the source span we're replacing. Precedence: the
+    #    branch's explicit branch point; else the single span all edits
+    #    target (the operator said "replay THIS span" by editing it);
+    #    else the run's first llm span.
+    effective_span_id = source_span_id
+    if effective_span_id is None:
+        edit_targets = {e.target_span_id for e in edits if e.target_span_id}
+        if len(edit_targets) == 1:
+            effective_span_id = next(iter(edit_targets))
+    source_data = await _resolve_source_span(ch, project_id, source_run_id, effective_span_id)
     if source_data is None:
         return None, "", "source span not found in clickhouse"
 
@@ -608,7 +615,7 @@ async def _execute_replay(
     #    matches our branch-point span (or the root if no target
     #    was given). Other edits are recorded in the metadata but
     #    don't fire — keeps the contract honest.
-    target_id = source_span_id or str(source_data.get("span_id") or "")
+    target_id = effective_span_id or str(source_data.get("span_id") or "")
     new_prompt = base_prompt
     new_model = base_model
     new_temperature = base_temperature

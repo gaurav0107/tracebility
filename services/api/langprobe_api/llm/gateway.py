@@ -149,6 +149,38 @@ async def dispatch(
     provider = provider_from_model(model)
     workspace_id = await _workspace_id_for_project(pool, project_id)
 
+    if provider == "stub":
+        # Deterministic echo, no credential, zero cost. Keeps every
+        # LLM-dispatching surface (studio replay, comparisons, judges)
+        # exercisable on a keyless self-host — same contract the
+        # playground's stub-* models already honor.
+        prompt_text = "\n\n".join(m.content for m in messages)
+        text = f"[{model}] {prompt_text[-512:]}"
+        prompt_tokens = max(1, len(prompt_text) // 4)
+        completion_tokens = max(1, len(text) // 4)
+        await _record_cost(
+            pool,
+            project_id=project_id,
+            workspace_id=workspace_id,
+            surface=surface,
+            surface_ref_id=surface_ref_id,
+            provider=provider,
+            model=model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cost_usd=0,
+            error_code=None,
+            error_detail=None,
+        )
+        return DispatchResult(
+            text=text,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cost_usd=0.0,
+            provider=provider,
+            model=model,
+        )
+
     if surface in _AUTOMATED_SURFACES:
         try:
             await _check_ceiling(pool, project_id)

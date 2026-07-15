@@ -21,7 +21,7 @@ ErrorCode = Literal[
 ]
 
 SUPPORTED_PROVIDERS: frozenset[str] = frozenset(
-    ["anthropic", "openai", "gemini", "mistral", "deepseek", "groq"]
+    ["anthropic", "openai", "gemini", "mistral", "deepseek", "groq", "stub"]
 )
 
 
