@@ -66,9 +66,11 @@ const EDIT_FIELDS: { value: StudioEdit["field"]; label: string; hint: string }[]
 export function NewBranchButton({
   projectId,
   defaultSourceRunId,
+  defaultSpanId,
 }: {
   projectId: string;
   defaultSourceRunId?: string;
+  defaultSpanId?: string;
 }) {
   const router = useRouter();
   // Auto-open the modal when a deep-link arrives with a pre-filled
@@ -77,7 +79,7 @@ export function NewBranchButton({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [sourceRunId, setSourceRunId] = useState(defaultSourceRunId ?? "");
-  const [sourceSpanId, setSourceSpanId] = useState("");
+  const [sourceSpanId, setSourceSpanId] = useState(defaultSpanId ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -86,7 +88,7 @@ export function NewBranchButton({
     setName("");
     setDescription("");
     setSourceRunId(defaultSourceRunId ?? "");
-    setSourceSpanId("");
+    setSourceSpanId(defaultSpanId ?? "");
     setError(null);
   }
 

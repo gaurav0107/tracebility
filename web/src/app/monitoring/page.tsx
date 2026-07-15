@@ -83,7 +83,7 @@ export default async function MonitoringPage({
   const tab: MonitoringTab =
     searchParams.tab === "alerts" ? "alerts" : "dashboards";
   const win =
-    WINDOWS.find((w) => w.label === searchParams.window) ?? WINDOWS[0];
+    WINDOWS.find((w) => w.label === searchParams.window) ?? WINDOWS[2];
   const modelFilter = (searchParams.model || "").trim() || null;
   const crumbs = (
     <>

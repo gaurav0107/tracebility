@@ -31,10 +31,11 @@ interface BranchList {
 export default async function StudioPage({
   searchParams,
 }: {
-  searchParams?: { source_run_id?: string };
+  searchParams?: { source_run_id?: string; span_id?: string };
 }) {
   const { active, all, reason } = await resolveActiveProject();
   const defaultSourceRunId = (searchParams?.source_run_id ?? "").trim();
+  const defaultSpanId = (searchParams?.span_id ?? "").trim();
 
   if (!active) {
     return (
@@ -66,6 +67,7 @@ export default async function StudioPage({
             <NewBranchButton
               projectId={active.id}
               defaultSourceRunId={defaultSourceRunId || undefined}
+              defaultSpanId={defaultSpanId || undefined}
             />
           }
         />

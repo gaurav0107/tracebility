@@ -70,7 +70,7 @@ const RANGES: { label: string; seconds: number }[] = [
   { label: "24h", seconds: 24 * 3600 },
   { label: "7d", seconds: 7 * 24 * 3600 },
 ];
-const DEFAULT_WINDOW = 3600;
+const DEFAULT_WINDOW = 24 * 3600;
 
 function rangeFromQuery(v: string | undefined): number {
   if (!v) return DEFAULT_WINDOW;

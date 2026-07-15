@@ -184,7 +184,7 @@ export default async function RunDetailPage({
           gap: 18,
         }}
       >
-        <RunHeader run={run} spanCount={spans.length} />
+        <RunHeader run={run} spanCount={spans.length} projectId={active.id} />
         <div
           style={{
             display: "grid",
@@ -228,7 +228,15 @@ export default async function RunDetailPage({
   );
 }
 
-function RunHeader({ run, spanCount }: { run: Run; spanCount: number }) {
+function RunHeader({
+  run,
+  spanCount,
+  projectId,
+}: {
+  run: Run;
+  spanCount: number;
+  projectId: string;
+}) {
   return (
     <div
       className="card"
@@ -267,13 +275,22 @@ function RunHeader({ run, spanCount }: { run: Run; spanCount: number }) {
         >
           {run.run_id}
         </span>
-        <button
-          type="button"
+        <a
+          className="mono"
+          style={{ fontSize: 11.5 }}
+          href={`/api/runs/${run.run_id}?project_id=${projectId}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          json ↗
+        </a>
+        <a
           className="btn btn-primary btn-sm"
           style={{ borderRadius: "var(--r-pill)" }}
+          href="#replay-diff"
         >
           replay
-        </button>
+        </a>
       </div>
       <div
         style={{
@@ -599,7 +616,7 @@ function InspectorPane({
       }}
     >
       {span ? (
-        <SpanInspector span={span} capture={capture} />
+        <SpanInspector span={span} capture={capture} runId={run.run_id} />
       ) : (
         <RunInspector
           run={run}
@@ -615,9 +632,11 @@ function InspectorPane({
 function SpanInspector({
   span,
   capture,
+  runId,
 }: {
   span: Span;
   capture: ReplayCaptureItem | null;
+  runId: string;
 }) {
   return (
     <>
@@ -718,20 +737,13 @@ function SpanInspector({
       ) : null}
       {capture ? <CaptureBlock capture={capture} /> : null}
       <div style={{ display: "flex", gap: 10, marginTop: 2 }}>
-        <button
-          type="button"
+        <a
           className="btn btn-primary btn-sm"
           style={{ borderRadius: "var(--r-pill)" }}
+          href={`/studio?source_run_id=${runId}&span_id=${span.span_id}`}
         >
-          replay with edits
-        </button>
-        <button
-          type="button"
-          className="btn btn-sm"
-          style={{ borderRadius: "var(--r-pill)" }}
-        >
-          add to dataset
-        </button>
+          branch in studio
+        </a>
       </div>
     </>
   );
@@ -835,7 +847,7 @@ function RunInspector({
         </Section>
       ) : null}
       {captures ? <ReplayPanel captures={captures} /> : null}
-      <Section label="replay & diff">
+      <Section label="replay & diff" id="replay-diff">
         <ReplayDiffClient
           runId={run.run_id}
           projectId={projectId}
@@ -953,12 +965,14 @@ function KvList({ children }: { children: React.ReactNode }) {
 function Section({
   label,
   children,
+  id,
 }: {
   label: string;
   children: React.ReactNode;
+  id?: string;
 }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+    <div id={id} style={{ display: "flex", flexDirection: "column", gap: 7 }}>
       <span
         style={{
           fontSize: 10.5,
