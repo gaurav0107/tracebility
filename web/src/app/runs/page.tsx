@@ -98,6 +98,7 @@ interface AppliedFilters {
   kind: string | null;
   search: string | null;
   window_seconds: number | null;
+  page: number;
 }
 
 function readView(
@@ -127,18 +128,27 @@ function readFilters(
       windowSeconds = Math.round(n);
     }
   }
+  const pageRaw = Number(pick("page") ?? "1");
+  const page =
+    Number.isFinite(pageRaw) && pageRaw >= 1 && pageRaw <= 500
+      ? Math.floor(pageRaw)
+      : 1;
   return {
     status: status && ALLOWED_STATUS.has(status) ? status : null,
     kind: kind && ALLOWED_KIND.has(kind) ? kind : null,
     search: search ? search.slice(0, 256) : null,
     window_seconds: windowSeconds,
+    page,
   };
 }
 
 function buildRunsQuery(projectId: string, filters: AppliedFilters): string {
   const sp = new URLSearchParams({
     project_id: projectId,
-    limit: String(DEFAULT_LIMIT),
+    // One extra row tells us whether an older page exists without a
+    // second count query.
+    limit: String(DEFAULT_LIMIT + 1),
+    offset: String((filters.page - 1) * DEFAULT_LIMIT),
   });
   if (filters.status) sp.set("status", filters.status);
   if (filters.kind) sp.set("kind", filters.kind);
@@ -235,7 +245,9 @@ export default async function TracingPage({
       `/v1/annotations?project_id=${encodeURIComponent(active.id)}`,
     ),
   ]);
-  const runs = runsRes.data?.items ?? [];
+  const fetchedRuns = runsRes.data?.items ?? [];
+  const hasOlderPage = fetchedRuns.length > DEFAULT_LIMIT;
+  const runs = fetchedRuns.slice(0, DEFAULT_LIMIT);
   const views = viewsRes.data ?? [];
   const datasets: DatasetOption[] = (datasetsRes.data ?? []).map((d) => ({
     id: d.id,
@@ -290,8 +302,56 @@ export default async function TracingPage({
             queues={queues}
           />
         </RunsBulkProvider>
+        <Pager filters={filters} hasOlder={hasOlderPage} />
       </PageInterior>
     </Shell>
+  );
+}
+
+function pagerHref(filters: AppliedFilters, page: number): string {
+  const sp = new URLSearchParams();
+  if (filters.status) sp.set("status", filters.status);
+  if (filters.kind) sp.set("kind", filters.kind);
+  if (filters.search) sp.set("search", filters.search);
+  if (filters.window_seconds) sp.set("window", String(filters.window_seconds));
+  if (page > 1) sp.set("page", String(page));
+  const qs = sp.toString();
+  return qs ? `/runs?${qs}` : "/runs";
+}
+
+function Pager({
+  filters,
+  hasOlder,
+}: {
+  filters: AppliedFilters;
+  hasOlder: boolean;
+}) {
+  if (filters.page === 1 && !hasOlder) return null;
+  return (
+    <nav
+      aria-label="Pagination"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        gap: 12,
+        fontSize: 13,
+      }}
+    >
+      {filters.page > 1 ? (
+        <Link href={pagerHref(filters, filters.page - 1)}>← newer</Link>
+      ) : (
+        <span style={{ color: "var(--text-4)" }}>← newer</span>
+      )}
+      <span className="mono" style={{ color: "var(--text-3)", fontSize: 12 }}>
+        page {filters.page}
+      </span>
+      {hasOlder ? (
+        <Link href={pagerHref(filters, filters.page + 1)}>older →</Link>
+      ) : (
+        <span style={{ color: "var(--text-4)" }}>older →</span>
+      )}
+    </nav>
   );
 }
 
