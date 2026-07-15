@@ -23,6 +23,9 @@ interface ThreadRun {
   latency_ms: number | null;
   total_tokens: number;
   cost_usd: number;
+  inputs: string | null;
+  outputs: string | null;
+  error_message: string | null;
 }
 
 interface ThreadDetail {
@@ -85,6 +88,7 @@ export default async function ThreadDetailPage({
               </div>
             ) : null}
             <SummaryGrid detail={detail} />
+            <ConversationCard runs={detail.runs} />
             <RunsCard runs={detail.runs} />
           </>
         ) : (
@@ -139,6 +143,184 @@ function PageHeader({
       <h1>{title}</h1>
       {subtitle}
     </header>
+  );
+}
+
+/**
+ * Conversation view — the reason a threads surface exists. Extracts
+ * the human-readable user message / assistant reply from each run's
+ * boundary I/O (JSON shapes vary by SDK; fall back to the raw string)
+ * and renders them as a transcript. The metrics table below stays the
+ * quantitative view.
+ */
+function extractUserText(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const obj = JSON.parse(raw);
+    if (typeof obj === "string") return obj;
+    if (typeof obj?.question === "string") return obj.question;
+    if (typeof obj?.input === "string") return obj.input;
+    if (Array.isArray(obj?.messages)) {
+      const lastUser = [...obj.messages]
+        .reverse()
+        .find(
+          (m) =>
+            (m?.role === "user" || m?.role === "human") &&
+            typeof m?.content === "string",
+        );
+      if (lastUser) return lastUser.content;
+    }
+  } catch {
+    return raw;
+  }
+  return raw;
+}
+
+function extractAssistantText(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const obj = JSON.parse(raw);
+    if (typeof obj === "string") return obj;
+    if (typeof obj?.answer === "string") return obj.answer;
+    if (typeof obj?.output === "string") return obj.output;
+    if (typeof obj?.content === "string") return obj.content;
+  } catch {
+    return raw;
+  }
+  return raw;
+}
+
+function ConversationCard({ runs }: { runs: ThreadRun[] }) {
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>
+          Conversation{" "}
+          <span
+            className="mono"
+            style={{ fontSize: 11, color: "var(--text-3)", fontWeight: 400 }}
+          >
+            boundary I/O per turn; open a run for the full trace
+          </span>
+        </h2>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+          padding: "16px 20px 20px",
+        }}
+      >
+        {runs.map((r, i) => {
+          const user = extractUserText(r.inputs);
+          const assistant = extractAssistantText(r.outputs);
+          return (
+            <div
+              key={r.run_id}
+              style={{ display: "flex", flexDirection: "column", gap: 8 }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: 8,
+                  fontSize: 11,
+                  color: "var(--text-3)",
+                }}
+              >
+                <span style={{ fontWeight: 600 }}>turn {i + 1}</span>
+                <span className="mono">
+                  {new Date(r.start_time).toISOString().slice(11, 19)}
+                </span>
+                <Link href={`/runs/${r.run_id}`} className="mono">
+                  {r.run_id.slice(0, 8)} →
+                </Link>
+              </div>
+              {user ? (
+                <div
+                  style={{
+                    alignSelf: "flex-start",
+                    maxWidth: "72%",
+                    background: "var(--surface-2)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--r-3, 8px)",
+                    padding: "10px 14px",
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    whiteSpace: "pre-wrap",
+                    overflowWrap: "break-word",
+                  }}
+                >
+                  {user}
+                </div>
+              ) : null}
+              {r.status === "error" ? (
+                <div
+                  style={{
+                    alignSelf: "flex-end",
+                    maxWidth: "72%",
+                    background: "var(--danger-soft)",
+                    border: "1px solid var(--danger)",
+                    borderRadius: "var(--r-3, 8px)",
+                    padding: "10px 14px",
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <span
+                    style={{ color: "var(--danger)", fontWeight: 600 }}
+                  >
+                    run failed
+                  </span>
+                  {r.error_message ? (
+                    <span
+                      className="mono"
+                      style={{
+                        display: "block",
+                        marginTop: 4,
+                        fontSize: 12,
+                        color: "var(--text-2)",
+                        overflowWrap: "break-word",
+                      }}
+                    >
+                      {r.error_message}
+                    </span>
+                  ) : null}
+                </div>
+              ) : assistant ? (
+                <div
+                  style={{
+                    alignSelf: "flex-end",
+                    maxWidth: "72%",
+                    background: "var(--accent-soft)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--r-3, 8px)",
+                    padding: "10px 14px",
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    whiteSpace: "pre-wrap",
+                    overflowWrap: "break-word",
+                  }}
+                >
+                  {assistant}
+                </div>
+              ) : (
+                <div
+                  style={{
+                    alignSelf: "flex-end",
+                    fontSize: 12,
+                    color: "var(--text-3)",
+                  }}
+                >
+                  no output recorded
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

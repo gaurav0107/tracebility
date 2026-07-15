@@ -63,6 +63,12 @@ class ThreadRun(BaseModel):
     latency_ms: float | None
     total_tokens: int
     cost_usd: float
+    # Conversation view: the run's boundary I/O, truncated server-side
+    # so a long session stays a cheap payload. Full I/O lives on
+    # /v1/runs/{id}.
+    inputs: str | None = None
+    outputs: str | None = None
+    error_message: str | None = None
 
 
 class ThreadDetail(BaseModel):
@@ -170,7 +176,10 @@ async def get_thread(
 
     sql = """
         select run_id, name, kind, status, start_time, end_time,
-               duration_ns, total_tokens, cost_usd, end_user_id
+               duration_ns, total_tokens, cost_usd, end_user_id,
+               leftUTF8(inputs, 2000) as inputs,
+               leftUTF8(outputs, 2000) as outputs,
+               error_message
         from run final
         where project_id = {project_id:UUID}
           and session_id = {session_id:String}
@@ -198,6 +207,9 @@ async def get_thread(
             latency_ms=_latency_ms(row.get("duration_ns")),
             total_tokens=int(row.get("total_tokens") or 0),
             cost_usd=float(row.get("cost_usd") or 0),
+            inputs=row.get("inputs") or None,
+            outputs=row.get("outputs") or None,
+            error_message=row.get("error_message") or None,
         )
         for row in rows
     ]
