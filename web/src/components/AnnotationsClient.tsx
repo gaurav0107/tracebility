@@ -2,7 +2,7 @@
 
 import { ClipboardCheck, Plus, SkipForward, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 /**
  * Client controls for the Annotations queue feature.
@@ -422,16 +422,53 @@ export function DeleteAnnotationQueueButton({
 // Per-item label form (detail page)
 // ---------------------------------------------------------------------------
 
+interface RunPeek {
+  name: string;
+  status: string;
+  inputs: string;
+  outputs: string;
+  error_message?: string | null;
+}
+
+/** Pretty-print boundary I/O for the reviewer; fall back to raw. */
+function peekText(raw: string): string {
+  if (!raw) return "";
+  try {
+    const obj = JSON.parse(raw);
+    return JSON.stringify(obj, null, 2);
+  } catch {
+    return raw;
+  }
+}
+
 export function AnnotationLabelForm({
   queueId,
   item,
   rubric,
+  projectId,
 }: {
   queueId: string;
   item: AnnotationItemRow;
   rubric: AnnotationRubric;
+  projectId: string;
 }) {
   const router = useRouter();
+  const [peek, setPeek] = useState<RunPeek | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setPeek(null);
+    fetch(
+      `/api/runs/${encodeURIComponent(item.run_id)}?project_id=${encodeURIComponent(projectId)}`,
+    )
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (alive && d) setPeek(d as RunPeek);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [item.run_id, projectId]);
   const [label, setLabel] = useState<string>(item.label ?? rubric.labels[0] ?? "");
   const [score, setScore] = useState<string>(
     item.score === null ? "" : String(item.score),
@@ -524,6 +561,103 @@ export function AnnotationLabelForm({
         </div>
         <ItemStatusBadge status={item.status} />
       </div>
+      {peek ? (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 10,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                color: "var(--text-4)",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                marginBottom: 6,
+              }}
+            >
+              Input
+            </div>
+            <pre
+              className="mono"
+              style={{
+                margin: 0,
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--r-3, 8px)",
+                padding: "10px 12px",
+                fontSize: 12,
+                lineHeight: 1.5,
+                maxHeight: 180,
+                overflow: "auto",
+                whiteSpace: "pre-wrap",
+                overflowWrap: "break-word",
+              }}
+            >
+              {peekText(peek.inputs) || "(empty)"}
+            </pre>
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                color: "var(--text-4)",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                marginBottom: 6,
+              }}
+            >
+              {peek.status === "error" ? "Error" : "Output"}
+            </div>
+            <pre
+              className="mono"
+              style={{
+                margin: 0,
+                background:
+                  peek.status === "error"
+                    ? "var(--danger-soft)"
+                    : "var(--surface-2)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--r-3, 8px)",
+                padding: "10px 12px",
+                fontSize: 12,
+                lineHeight: 1.5,
+                maxHeight: 180,
+                overflow: "auto",
+                whiteSpace: "pre-wrap",
+                overflowWrap: "break-word",
+                color:
+                  peek.status === "error" ? "var(--danger)" : undefined,
+              }}
+            >
+              {peek.status === "error"
+                ? peek.error_message || "(no error message recorded)"
+                : peekText(peek.outputs) || "(empty)"}
+            </pre>
+          </div>
+          <a
+            href={`/runs/${item.run_id}`}
+            target="_blank"
+            rel="noreferrer"
+            style={{ fontSize: 12, gridColumn: "1 / -1" }}
+          >
+            open full trace ↗
+          </a>
+        </div>
+      ) : (
+        <div
+          style={{
+            height: 60,
+            background: "var(--surface-3)",
+            borderRadius: "var(--r-3, 8px)",
+          }}
+        />
+      )}
       <div>
         <div
           style={{

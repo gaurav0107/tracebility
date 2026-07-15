@@ -124,6 +124,7 @@ export default async function AnnotationQueueDetailPage({
             queueId={queue.id}
             item={nextPending}
             rubric={queue.rubric}
+            projectId={queue.project_id}
           />
         ) : queue.status === "complete" ? (
           <CompleteCard total={queue.item_total} done={queue.item_done} />
