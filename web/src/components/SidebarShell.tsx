@@ -2,7 +2,7 @@
 
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LogoutLink } from "@/components/AuthClient";
 import type { Project } from "@/lib/projects";
 import {
@@ -37,11 +37,23 @@ export function SidebarShell({
   me: MeResponse | null;
   initialCollapsed: boolean;
 }) {
-  const [collapsed, setCollapsed] = useState(initialCollapsed);
+  const [userCollapsed, setUserCollapsed] = useState(initialCollapsed);
+  // Narrow viewports force the icon rail — a 224px sidebar in a 375px
+  // window leaves no room for the actual product. The user's cookie
+  // choice is preserved and reapplies when the window grows back.
+  const [forcedRail, setForcedRail] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const apply = () => setForcedRail(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  const collapsed = userCollapsed || forcedRail;
 
   function toggle() {
     const next = !collapsed;
-    setCollapsed(next);
+    setUserCollapsed(next);
     const secure = window.location.protocol === "https:" ? "; secure" : "";
     document.cookie = `${SIDEBAR_COOKIE}=${next ? SIDEBAR_COLLAPSED_VALUE : SIDEBAR_EXPANDED_VALUE}; path=/; max-age=31536000; samesite=lax${secure}`;
   }
