@@ -162,9 +162,13 @@ export default async function RunDetailPage({
 
   const crumbs = (
     <>
-      <Link href="/">langprobe</Link>
-      <span className="sep">/</span>
-      <Link href="/runs">runs</Link>
+      {active ? (
+        <>
+          <span className="mono">{active.slug}</span>
+          <span className="sep">/</span>
+        </>
+      ) : null}
+      <Link href="/runs">tracing</Link>
       <span className="sep">/</span>
       <span className="last mono">{run.run_id.slice(0, 8)}</span>
     </>

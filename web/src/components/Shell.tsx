@@ -19,6 +19,7 @@ import {
   SIDEBAR_COLLAPSED_VALUE,
   SIDEBAR_COOKIE,
 } from "@/lib/sidebar";
+import AutoCrumbs from "./AutoCrumbs";
 import CommandPalette from "./CommandPalette";
 import { SidebarShell } from "./SidebarShell";
 
@@ -102,13 +103,7 @@ function Topbar({
       }}
     >
       <div className="crumbs">
-        {crumbs ?? (
-          <>
-            {active ? <span className="mono">{active.slug}</span> : null}
-            <span className="sep">/</span>
-            <span className="last">overview</span>
-          </>
-        )}
+        {crumbs ?? <AutoCrumbs projectSlug={active?.slug ?? null} />}
       </div>
       <div style={{ flex: 1 }} />
       <CommandPalette projectId={active?.id ?? null} />
