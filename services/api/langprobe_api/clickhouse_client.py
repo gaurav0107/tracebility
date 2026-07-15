@@ -42,6 +42,7 @@ def _utc_aware(value: Any) -> Any:
         return value.replace(tzinfo=UTC)
     return value
 
+
 # Pool cap: deliberately conservative. Each client opens a small HTTP
 # connection pool internally; we just need enough distinct sessions
 # that the home-page fan-out (5-ish parallel reads) doesn't queue.

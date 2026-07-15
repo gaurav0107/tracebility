@@ -71,9 +71,9 @@ export function NewJudgeButton({ projectId }: { projectId: string }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [rubric, setRubric] = useState(DEFAULT_RUBRIC);
-  const [provider, setProvider] = useState<
-    Exclude<LunaJudgeRow["provider"], "stub">
-  >("anthropic");
+  const [provider, setProvider] = useState<LunaJudgeRow["provider"]>(
+    "anthropic",
+  );
   const [model, setModel] = useState("claude-sonnet-4-6");
   const [temperature, setTemperature] = useState("0.0");
   const [maxTokens, setMaxTokens] = useState("512");
