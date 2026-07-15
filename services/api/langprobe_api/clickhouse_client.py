@@ -23,10 +23,24 @@ import asyncio
 import queue
 import threading
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from typing import Any
 
 import clickhouse_connect
 from clickhouse_connect.driver.client import Client
+
+
+def _utc_aware(value: Any) -> Any:
+    """Stamp UTC on naive datetimes coming out of ClickHouse.
+
+    DateTime64 columns decode as naive datetimes; FastAPI then
+    serializes them without a timezone suffix and every browser parses
+    them as *local* time, shifting all timestamps by the viewer's UTC
+    offset. ClickHouse stores UTC, so say so.
+    """
+    if isinstance(value, datetime) and value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
 
 # Pool cap: deliberately conservative. Each client opens a small HTTP
 # connection pool internally; we just need enough distinct sessions
@@ -85,7 +99,10 @@ class ClickHouseQuery:
             lambda: self._run(lambda c: c.query(sql, parameters=parameters)),
         )
         column_names = result.column_names
-        return [dict(zip(column_names, row, strict=True)) for row in result.result_rows]
+        return [
+            {k: _utc_aware(v) for k, v in zip(column_names, row, strict=True)}
+            for row in result.result_rows
+        ]
 
     async def insert(
         self,
