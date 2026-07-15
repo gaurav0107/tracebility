@@ -45,7 +45,7 @@ export interface StudioBranchRow {
   source_span_id: string | null;
   edits: StudioEdit[];
   replay_run_id: string | null;
-  status: "draft" | "replayed" | "promoted";
+  status: "draft" | "replayed" | "failed" | "promoted";
   diff_summary: string | null;
   created_at: string;
   updated_at: string;

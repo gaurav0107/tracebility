@@ -331,6 +331,9 @@ function BranchStatusBadge({
   if (status === "replayed") {
     return <span className="badge badge-neutral">replayed</span>;
   }
+  if (status === "failed") {
+    return <span className="badge badge-danger">failed</span>;
+  }
   return <span className="badge badge-warn">draft</span>;
 }
 

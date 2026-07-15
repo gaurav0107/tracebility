@@ -98,7 +98,7 @@ export default async function StudioBranchPage({
         <EditsCard
           branchId={branch.id}
           edits={branch.edits}
-          frozen={branch.status !== "draft" || crossProject}
+          frozen={!(branch.status === "draft" || branch.status === "failed") || crossProject}
         />
       </div>
     </Shell>
@@ -156,7 +156,13 @@ function Header({
         <ReplayBranchButton
           branchId={branch.id}
           disabled={crossProject || branch.status === "promoted"}
-          label={branch.status === "replayed" ? "Re-replay" : "Replay"}
+          label={
+            branch.status === "replayed"
+              ? "Re-replay"
+              : branch.status === "failed"
+                ? "Retry replay"
+                : "Replay"
+          }
         />
         <PromoteBranchButton
           branchId={branch.id}
@@ -182,6 +188,9 @@ function BranchStatusBadge({
   }
   if (status === "replayed") {
     return <span className="badge badge-neutral">replayed</span>;
+  }
+  if (status === "failed") {
+    return <span className="badge badge-danger">failed</span>;
   }
   return <span className="badge badge-warn">draft</span>;
 }

@@ -48,7 +48,7 @@ log = structlog.get_logger("langprobe.api.studio")
 router = APIRouter(prefix="/v1/studio", tags=["studio"])
 
 _ALLOWED_FIELDS = {"prompt", "model", "temperature", "tool_args"}
-_BRANCH_STATUSES = {"draft", "replayed", "promoted"}
+_BRANCH_STATUSES = {"draft", "replayed", "failed", "promoted"}
 
 
 class StudioEdit(BaseModel):
@@ -217,7 +217,7 @@ async def patch_branch(
         pool, principal, project_id, ("owner", "admin", "member")
     )
 
-    if row["status"] != "draft" and body.edits is not None:
+    if row["status"] not in ("draft", "failed") and body.edits is not None:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "edits are frozen once the branch has been replayed",
@@ -328,7 +328,7 @@ async def replay_branch(
     workspace_id = await _assert_project_role(
         pool, principal, project_id, ("owner", "admin", "member")
     )
-    if row["status"] not in ("draft", "replayed"):
+    if row["status"] not in ("draft", "replayed", "failed"):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             f"cannot replay a branch in status={row['status']}",
@@ -352,15 +352,18 @@ async def replay_branch(
 
     if dispatch_error is not None:
         diff_summary = f"replay failed: {dispatch_error}; {edit_summary}"
+        new_status = "failed"
     elif dispatch_summary:
         diff_summary = f"{edit_summary}; {dispatch_summary}"
+        new_status = "replayed"
     else:
         diff_summary = edit_summary
+        new_status = "replayed"
 
     updated = await pool.fetchrow(
         """
         update studio_branch
-           set status = 'replayed',
+           set status = $5,
                diff_summary = $2,
                replay_run_id = coalesce($4, replay_run_id),
                replayed_at = $3
@@ -373,6 +376,7 @@ async def replay_branch(
         diff_summary,
         datetime.now(UTC),
         new_run_id,
+        new_status,
     )
     assert updated is not None
 
@@ -634,6 +638,15 @@ async def _execute_replay(
     if not new_prompt.strip():
         return None, "", "rendered prompt is empty"
 
+    if not new_model.strip():
+        kind = str(source_data.get("kind") or "unknown")
+        return (
+            None,
+            "",
+            f"span '{source_data.get('name')}' ({kind}) has no model to replay — "
+            "add a model edit or branch from an llm span",
+        )
+
     # 3) Resolve provider from the model prefix.
     try:
         provider = playground_module._resolve_provider(  # type: ignore[attr-defined]
@@ -846,14 +859,16 @@ async def _resolve_source_span(
     """Find the span we're replacing in the source run.
 
     With a span_id, we look it up directly. Without one, we pick the
-    span with no parent (the run's root). Returns None if neither
-    resolves; the caller surfaces an honest error.
+    run's first **llm** span — replay dispatches a model call, and on
+    agent/chain runs the root span carries no model, so "replay @root"
+    means "replay the first LLM boundary". Runs with no llm span fall
+    back to the root so the caller can surface an honest error.
     """
     try:
         if source_span_id:
             rows = await ch.query(
                 """
-                select span_id, name, model, temperature, inputs, outputs
+                select span_id, name, kind, model, temperature, inputs, outputs
                   from span final
                  where project_id = {project_id:UUID}
                    and run_id = {run_id:UUID}
@@ -869,11 +884,12 @@ async def _resolve_source_span(
         else:
             rows = await ch.query(
                 """
-                select span_id, name, model, temperature, inputs, outputs
+                select span_id, name, kind, model, temperature, inputs, outputs
                   from span final
                  where project_id = {project_id:UUID}
                    and run_id = {run_id:UUID}
-                   and parent_span_id is null
+                   and kind = 'llm'
+                   and model != ''
                  order by start_time asc
                  limit 1
                 """,
@@ -882,6 +898,22 @@ async def _resolve_source_span(
                     "run_id": source_run_id,
                 },
             )
+            if not rows:
+                rows = await ch.query(
+                    """
+                    select span_id, name, kind, model, temperature, inputs, outputs
+                      from span final
+                     where project_id = {project_id:UUID}
+                       and run_id = {run_id:UUID}
+                       and parent_span_id is null
+                     order by start_time asc
+                     limit 1
+                    """,
+                    parameters={
+                        "project_id": str(project_id),
+                        "run_id": source_run_id,
+                    },
+                )
     except Exception as exc:  # noqa: BLE001
         log.warning(
             "studio source-span resolve failed",
