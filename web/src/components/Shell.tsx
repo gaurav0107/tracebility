@@ -19,6 +19,7 @@ import {
   SIDEBAR_COLLAPSED_VALUE,
   SIDEBAR_COOKIE,
 } from "@/lib/sidebar";
+import CommandPalette from "./CommandPalette";
 import { SidebarShell } from "./SidebarShell";
 
 export async function Shell({
@@ -110,26 +111,7 @@ function Topbar({
         )}
       </div>
       <div style={{ flex: 1 }} />
-      <SearchBox />
+      <CommandPalette projectId={active?.id ?? null} />
     </header>
-  );
-}
-
-function SearchBox() {
-  return (
-    <label className="search-box" htmlFor="topbar-search" style={{ maxWidth: 300 }}>
-      <span aria-hidden style={{ fontSize: 12, color: "var(--text-4)" }}>
-        ⌕
-      </span>
-      <input
-        id="topbar-search"
-        type="search"
-        placeholder="search runs, evals, prompts…"
-        aria-label="Search"
-      />
-      <span className="kbd" aria-hidden>
-        ⌘K
-      </span>
-    </label>
   );
 }

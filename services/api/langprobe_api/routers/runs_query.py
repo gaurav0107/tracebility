@@ -131,11 +131,15 @@ async def list_runs(
         sql += " and kind = {kind:String}"
         params["kind"] = kind
     if search:
-        # Case-insensitive substring on `name`. The mergetree column is
-        # LowCardinality(String); positionCaseInsensitive is fine on it
-        # and we don't expect this to be the hot path -- the index is
-        # by start_time + project, search is a UI convenience.
-        sql += " and positionCaseInsensitive(name, {search:String}) > 0"
+        # Case-insensitive substring on `name`, plus run_id prefix so a
+        # pasted/remembered id fragment (the ids shown in every table)
+        # resolves. LowCardinality(String) is fine with
+        # positionCaseInsensitive and this isn't the hot path -- the
+        # index is by start_time + project, search is a UI convenience.
+        sql += (
+            " and (positionCaseInsensitive(name, {search:String}) > 0"
+            "      or startsWith(toString(run_id), lower({search:String})))"
+        )
         params["search"] = search
     if window_seconds is not None:
         sql += " and start_time >= now64(9) - toIntervalSecond({window:UInt32})"
