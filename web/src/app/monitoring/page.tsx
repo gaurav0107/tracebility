@@ -392,7 +392,7 @@ function KpiStrip({
           overflow: "hidden",
         }}
       >
-        {["Runs", "Errors", "Error rate", "Avg p95", "Total cost"].map(
+        {["Runs", "Errors", "Error rate", "p95 latency", "Total cost"].map(
           (label, i) => (
             <KpiCell key={label} label={label} value="—" last={i === 4} />
           ),
@@ -430,7 +430,7 @@ function KpiStrip({
         }
       />
       <KpiCell
-        label="Avg p95"
+        label="p95 latency"
         value={
           totals.p95Avg === null
             ? "—"
@@ -508,7 +508,7 @@ function ChartGrid({
             buckets={buckets}
             bucketSeconds={bucketSeconds}
             series={[
-              { key: "p50_ms", color: "var(--text-3)", label: "p50" },
+              { key: "p50_ms", color: "var(--accent)", label: "p50" },
               { key: "p95_ms", color: "var(--text)", label: "p95" },
               { key: "p99_ms", color: "var(--danger)", label: "p99" },
             ]}
@@ -526,7 +526,7 @@ function ChartGrid({
             buckets={buckets}
             bucketSeconds={bucketSeconds}
             valueKey="runs"
-            color="var(--text-2)"
+            color="var(--accent)"
           />
         }
       />
@@ -665,15 +665,32 @@ function MultiLineChart({
           </text>
         </g>
       ))}
-      {series.map((s) => (
-        <path
-          key={s.key}
-          d={pathFor(s.key)}
-          fill="none"
-          stroke={s.color}
-          strokeWidth="1.5"
-        />
-      ))}
+      {series.map((s) => {
+        const pts = buckets
+          .map((b, i) => ({ v: b[s.key], i }))
+          .filter((p): p is { v: number; i: number } => p.v !== null);
+        return (
+          <g key={s.key}>
+            <path
+              d={pathFor(s.key)}
+              fill="none"
+              stroke={s.color}
+              strokeWidth="1.5"
+            />
+            {pts.length < 3
+              ? pts.map((p) => (
+                  <circle
+                    key={p.i}
+                    cx={x(p.i)}
+                    cy={y(p.v)}
+                    r="3"
+                    fill={s.color}
+                  />
+                ))
+              : null}
+          </g>
+        );
+      })}
       <XAxisLabels buckets={buckets} W={W} H={H} PAD={PAD} />
       <Legend series={series} W={W} />
     </ChartFrame>
