@@ -19,7 +19,8 @@ export type Provider =
   | "gemini"
   | "mistral"
   | "deepseek"
-  | "groq";
+  | "groq"
+  | "stub";
 
 export interface ModelOption {
   /** What gets dispatched. `<provider>/<model_id>`. */
@@ -37,6 +38,7 @@ export const PROVIDERS: { value: Provider; label: string }[] = [
   { value: "mistral", label: "Mistral" },
   { value: "deepseek", label: "DeepSeek" },
   { value: "groq", label: "Groq" },
+  { value: "stub", label: "Stub (no key)" },
 ];
 
 /**
@@ -47,8 +49,8 @@ export const PROVIDERS: { value: Provider; label: string }[] = [
  */
 export const MODEL_CATALOG: Record<Provider, ModelOption[]> = {
   anthropic: [
-    { value: "anthropic/claude-opus-4-7", label: "claude-opus-4-7", hint: "frontier reasoning" },
-    { value: "anthropic/claude-sonnet-4-6", label: "claude-sonnet-4-6", hint: "balanced" },
+    { value: "anthropic/claude-opus-4-8", label: "claude-opus-4-8", hint: "frontier reasoning" },
+    { value: "anthropic/claude-sonnet-5", label: "claude-sonnet-5", hint: "balanced" },
     { value: "anthropic/claude-haiku-4-5-20251001", label: "claude-haiku-4-5", hint: "fast / cheap" },
   ],
   openai: [
@@ -76,6 +78,9 @@ export const MODEL_CATALOG: Record<Provider, ModelOption[]> = {
     { value: "groq/llama-3.3-70b-versatile", label: "llama-3.3-70b", hint: "fast hosted" },
     { value: "groq/llama-3.1-8b-instant", label: "llama-3.1-8b-instant", hint: "cheap" },
     { value: "groq/mixtral-8x7b-32768", label: "mixtral-8x7b", hint: "32k context" },
+  ],
+  stub: [
+    { value: "stub-echo", label: "stub-echo", hint: "keyless smoke test" },
   ],
 };
 

@@ -57,7 +57,7 @@ log = structlog.get_logger("langprobe.api.playground")
 router = APIRouter(prefix="/v1/playground", tags=["playground"])
 
 _VAR_RE = re.compile(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}")
-_PROVIDERS = {"anthropic", "openai", "stub"}
+_PROVIDERS = {"anthropic", "openai", "gemini", "mistral", "deepseek", "groq", "stub"}
 _DEFAULT_MAX_TOKENS = 1024
 
 
@@ -410,7 +410,7 @@ async def get_session(
 
 def _resolve_provider(model: str) -> str:
     name = model.lower()
-    if name.startswith("stub-"):
+    if name.startswith("stub-") or name.startswith("stub/"):
         return "stub"
     if name.startswith("claude-") or name.startswith("anthropic/"):
         return "anthropic"
@@ -422,9 +422,13 @@ def _resolve_provider(model: str) -> str:
         or name.startswith("openai/")
     ):
         return "openai"
+    for provider in ("gemini", "mistral", "deepseek", "groq"):
+        if name.startswith(provider + "/") or name.startswith(provider + "-"):
+            return provider
     raise HTTPException(
         status.HTTP_400_BAD_REQUEST,
-        f"unknown provider for model '{model}' (expected claude-*, gpt-*, o*-*, or stub-*)",
+        f"unknown provider for model '{model}' (expected a "
+        "'<provider>/<model>' id or claude-*, gpt-*, o*-*, stub-*)",
     )
 
 

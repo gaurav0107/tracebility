@@ -896,6 +896,21 @@ function OutputCard({ result }: { result: PlaygroundSessionOut }) {
         }}
       >
         {failed ? result.error : result.output_text || "(empty)"}
+        {failed && result.error?.includes("credential") ? (
+          <span
+            style={{
+              display: "block",
+              marginTop: 8,
+              fontFamily: "var(--f-sans)",
+              color: "var(--text-2)",
+            }}
+          >
+            Add a provider key under{" "}
+            <a href="/workspace/credentials">workspace → LLM credentials</a>,
+            or run a <span className="mono">stub-*</span> model to smoke-test
+            without one.
+          </span>
+        ) : null}
       </div>
       <div
         style={{
