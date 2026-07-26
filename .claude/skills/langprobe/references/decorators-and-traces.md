@@ -121,7 +121,7 @@ in `/runs`:
 ```python
 with tracer.start_as_current_span("handle_request") as root:
     root.set_attribute("openinference.span.kind", "WORKFLOW")
-    root.set_attribute("enduser.id", current_user_id)   # the human, not the API key
+    root.set_attribute("enduser.id", current_user_id)  # the human, not the API key
     run_agent(...)
 ```
 

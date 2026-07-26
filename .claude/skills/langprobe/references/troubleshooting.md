@@ -157,11 +157,13 @@ from fastapi import FastAPI
 
 provider = build_provider("my-api")  # + instrument() at import/startup
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
     provider.force_flush()
     provider.shutdown()
+
 
 app = FastAPI(lifespan=lifespan)
 ```

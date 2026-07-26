@@ -86,10 +86,12 @@ OpenAIInstrumentor().instrument(tracer_provider=provider)  # provider match!
 
 from crewai import Agent, Task, Crew
 
-analyst = Agent(role="Market Analyst", goal="Analyze trends",
-                backstory="10y experience", verbose=False)
-task = Task(description="Analyze the AI chip market",
-            expected_output="A short report", agent=analyst)
+analyst = Agent(
+    role="Market Analyst", goal="Analyze trends", backstory="10y experience", verbose=False
+)
+task = Task(
+    description="Analyze the AI chip market", expected_output="A short report", agent=analyst
+)
 crew = Crew(agents=[analyst], tasks=[task])
 print(crew.kickoff())
 

@@ -114,6 +114,7 @@ def setup_tracing(service_name: str = "my-agent") -> None:
 
     # --- framework instrumentor (swap for the detected framework) ---
     from openinference.instrumentation.crewai import CrewAIInstrumentor
+
     CrewAIInstrumentor().instrument(tracer_provider=provider)
 ```
 
