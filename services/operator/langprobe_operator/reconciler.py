@@ -134,6 +134,7 @@ def build_manifests(*, name: str, namespace: str, spec: dict[str, Any]) -> list[
     api = spec.get("api") or {}
     ingest_api = spec.get("ingestApi") or {}
     ingest_worker = spec.get("ingestWorker") or {}
+    scheduler = spec.get("scheduler") or {}
     web = spec.get("web") or {}
     secrets = spec.get("secrets") or {}
     ingress = spec.get("ingress") or {}
@@ -145,6 +146,7 @@ def build_manifests(*, name: str, namespace: str, spec: dict[str, Any]) -> list[
     api_name = f"{name}-api"
     ingest_api_name = f"{name}-ingest-api"
     ingest_worker_name = f"{name}-ingest-worker"
+    scheduler_name = f"{name}-scheduler"
     web_name = f"{name}-web"
 
     base_labels = {
@@ -224,6 +226,13 @@ def build_manifests(*, name: str, namespace: str, spec: dict[str, Any]) -> list[
         e = env_from_secret(env, secrets.get(ref_key))
         if e:
             worker_envs.append(e)
+
+    scheduler_envs: list[dict[str, Any]] = [
+        {"name": "LANGPROBE_LOG_LEVEL", "value": log_level},
+    ]
+    e = env_from_secret("LANGPROBE_PG_DSN", secrets.get("postgres"))
+    if e:
+        scheduler_envs.append(e)
 
     web_envs: list[dict[str, Any]] = [
         {"name": "NODE_ENV", "value": "production"},
@@ -337,6 +346,23 @@ def build_manifests(*, name: str, namespace: str, spec: dict[str, Any]) -> list[
                     "langprobe-ingest-worker", ingest_worker.get("repository")
                 ),
                 "env": worker_envs,
+                "resources": _default_resources(),
+            },
+        )
+    )
+
+    # scheduler (no service; durable periodic ticks over the control plane)
+    manifests.append(
+        _deployment(
+            name=scheduler_name,
+            namespace=namespace,
+            owner_refs=owner_refs,
+            labels=labels("scheduler"),
+            replicas=int(scheduler.get("replicas", 1)),
+            container={
+                "name": "scheduler",
+                "image": container_image("langprobe-scheduler", scheduler.get("repository")),
+                "env": scheduler_envs,
                 "resources": _default_resources(),
             },
         )

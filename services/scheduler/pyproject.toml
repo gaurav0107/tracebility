@@ -1,0 +1,25 @@
+[project]
+name = "langprobe-scheduler"
+version = "0.0.0"
+description = "langprobe scheduler: durable periodic ticks (backtest reaper, and later recurring judges + alerts)."
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+dependencies = [
+    "asyncpg>=0.29",
+    "structlog>=24.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+    "pyright>=1.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["langprobe_scheduler"]
