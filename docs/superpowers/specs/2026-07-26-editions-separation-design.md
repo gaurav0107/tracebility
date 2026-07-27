@@ -151,10 +151,11 @@ enterprise = "langprobe_enterprise.plugin:EnterprisePlugin"
 ```python
 class LangprobePlugin(Protocol):
     name: str
-    def routers(self) -> list[APIRouter]: ...          # mounted after core routers
-    def middleware(self) -> list[Middleware]: ...       # outermost-first
-    def auth_providers(self) -> list[AuthProvider]: ... # registered in the auth registry
-    def ingest_hooks(self) -> list[IngestHook]: ...     # masking, usage emission
+
+    def routers(self) -> list[APIRouter]: ...  # mounted after core routers
+    def middleware(self) -> list[Middleware]: ...  # outermost-first
+    def auth_providers(self) -> list[AuthProvider]: ...  # registered in the auth registry
+    def ingest_hooks(self) -> list[IngestHook]: ...  # masking, usage emission
 ```
 
 Core's app factory iterates discovered plugins at startup, logs what loaded.
@@ -166,8 +167,8 @@ common case; `LANGPROBE_PLUGINS_DISABLE=name` as the escape hatch.
 Core module `langprobe_api/entitlements.py`:
 
 ```python
-def has_entitlement(feature: str) -> bool: ...   # community default: False
-def edition() -> str: ...                        # "community" | "enterprise" | "cloud"
+def has_entitlement(feature: str) -> bool: ...  # community default: False
+def edition() -> str: ...  # "community" | "enterprise" | "cloud"
 ```
 
 - License key = signed token (Ed25519, public key baked into core),
